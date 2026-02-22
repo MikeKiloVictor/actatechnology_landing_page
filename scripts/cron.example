@@ -1,0 +1,2 @@
+# Daily DB backup at 02:30 local server time
+30 2 * * * /bin/bash /path/to/actatechnology_landing_page/scripts/backup.sh >> /path/to/actatechnology_landing_page/storage/backup.log 2>&1
