@@ -23,6 +23,7 @@ $labels = [
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= h($title) ?> | <?= h((string) ($branding['app_name'] ?? 'ActaTechnology')) ?></title>
   <meta name="description" content="<?= h($description) ?>">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -69,7 +70,7 @@ $labels = [
     </nav>
   </main>
 
-  <script>
+  <script nonce="<?= h(cspNonce()) ?>">
     window.DECK_DATA = {
       slides: <?= json_encode($slides, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
       labels: <?= json_encode($labels, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>

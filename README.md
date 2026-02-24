@@ -24,11 +24,20 @@ This repository contains an MVP implementation of the ActaTechnology landing pla
    ```bash
    cp .env.docker.example .env
    ```
-2. Build and start services:
+2. Configure Google OAuth credentials in `.env` if you want admin SSO:
+   ```bash
+   GOOGLE_CLIENT_ID=your-google-web-client-id
+   GOOGLE_CLIENT_SECRET=your-google-client-secret
+   GOOGLE_REDIRECT_URI=http://localhost:8081/admin/auth/google/callback
+   ```
+   Notes:
+   - `GOOGLE_REDIRECT_URI` now falls back to `APP_URL/admin/auth/google/callback` when omitted.
+   - Compatibility aliases are supported: `GOOGLE_OAUTH_*` and `OAUTH_GOOGLE_*`.
+3. Build and start services:
    ```bash
    docker compose up -d --build
    ```
-3. Open the app:
+4. Open the app:
    - Landing page: `http://localhost:8081`
    - Mail inbox (Mailpit): `http://localhost:8026`
 
@@ -66,6 +75,18 @@ docker compose up -d --build
    - `database/seed.sql`
 4. Point web root to `public/`.
 5. Ensure sessions are enabled.
+
+## Troubleshooting
+
+- If Danish characters show as `mÃ¸de`, `pÃ¥`, or `tvÃ¦rs`, run:
+  ```bash
+  make db-fix-encoding
+  ```
+  or run manually:
+  ```bash
+  mysql --default-character-set=utf8mb4 -h <db-host> -u <db-user> -p <db-name> < scripts/repair-mojibake.sql
+  ```
+- Docker DB initialization now forces UTF-8 (`utf8mb4`) for import and server defaults.
 
 ## Testing and CI
 

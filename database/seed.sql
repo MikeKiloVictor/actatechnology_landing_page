@@ -1,3 +1,6 @@
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
 INSERT INTO core_tenants (tenant_key, primary_host) VALUES
 ('main', 'actatechnology.dk')
 ON DUPLICATE KEY UPDATE primary_host = VALUES(primary_host);

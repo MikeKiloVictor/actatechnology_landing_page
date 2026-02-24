@@ -24,9 +24,10 @@ final class Security
             header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
         }
 
+        $nonce = cspNonce();
         $csp = [
             "default-src 'self'",
-            "script-src 'self' https://www.googletagmanager.com",
+            "script-src 'self' 'nonce-{$nonce}' https://www.googletagmanager.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "img-src 'self' data: https:",
             "font-src 'self' https://fonts.gstatic.com",

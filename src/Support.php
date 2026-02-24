@@ -27,7 +27,8 @@ function loadEnv(string $path): void
             continue;
         }
 
-        if (array_key_exists($name, $_ENV) || array_key_exists($name, $_SERVER) || getenv($name) !== false) {
+        $existing = $_ENV[$name] ?? $_SERVER[$name] ?? getenv($name);
+        if ($existing !== false && $existing !== null && trim((string) $existing) !== '') {
             continue;
         }
 
@@ -54,8 +55,61 @@ function appDebug(): bool
     return env('APP_DEBUG', 'false') === 'true';
 }
 
+function cspNonce(): string
+{
+    static $nonce = null;
+    if ($nonce !== null) {
+        return $nonce;
+    }
+
+    $nonce = rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
+    return $nonce;
+}
+
+function repairMojibake(string $value): string
+{
+    if ($value === '' || !preg_match('/Ã|Â|â€™|â€œ|â€|â€“|â€”/u', $value)) {
+        return $value;
+    }
+
+    static $map = [
+        'Ã¦' => 'æ',
+        'Ã¸' => 'ø',
+        'Ã¥' => 'å',
+        'Ã†' => 'Æ',
+        'Ã˜' => 'Ø',
+        'Ã…' => 'Å',
+        'â€™' => "'",
+        'â€œ' => '"',
+        'â€' => '"',
+        'â€“' => '-',
+        'â€”' => '-',
+        'Â ' => ' ',
+        'Â' => '',
+    ];
+
+    return strtr($value, $map);
+}
+
+function normalizeOutput(mixed $value): mixed
+{
+    if (is_string($value)) {
+        return repairMojibake($value);
+    }
+
+    if (is_array($value)) {
+        foreach ($value as $key => $item) {
+            $value[$key] = normalizeOutput($item);
+        }
+        return $value;
+    }
+
+    return $value;
+}
+
 function h(string $value): string
 {
+    $value = repairMojibake($value);
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 }
 
@@ -147,6 +201,7 @@ function redirect(string $url): never
 
 function jsonResponse(array $payload, int $status = 200): never
 {
+    $payload = normalizeOutput($payload);
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

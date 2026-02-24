@@ -1,6 +1,6 @@
 COMPOSE ?= docker compose
 
-.PHONY: up down down-v logs restart shell-app shell-db db-init test
+.PHONY: up down down-v logs restart shell-app shell-db db-init db-fix-encoding test
 
 up:
 	$(COMPOSE) up -d --build
@@ -25,6 +25,9 @@ shell-db:
 
 db-init:
 	$(COMPOSE) exec app bash scripts/docker/init-db.sh
+
+db-fix-encoding:
+	$(COMPOSE) exec app bash scripts/docker/repair-db-encoding.sh
 
 test:
 	$(COMPOSE) exec app php tests/run.php

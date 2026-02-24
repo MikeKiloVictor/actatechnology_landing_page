@@ -1,3 +1,7 @@
+<?php
+$googleOauthReady = (bool) ($google_oauth_ready ?? false);
+$googleOauthMissing = is_array($google_oauth_missing ?? null) ? $google_oauth_missing : [];
+?>
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body class="admin-login-wrap">
@@ -22,15 +27,19 @@
     <?php endif; ?>
 
     <div class="admin-login-grid">
-      <a href="/admin/auth/google/start" class="button button-primary" style="text-decoration:none;">Continue with Google</a>
+      <?php if ($googleOauthReady): ?>
+        <a href="/admin/auth/google/start" class="button button-primary" style="text-decoration:none;">Continue with Google</a>
+      <?php else: ?>
+        <p class="status-chip error" style="margin:0;">Google SSO is unavailable. Missing config: <?= h(implode(', ', $googleOauthMissing)) ?></p>
+      <?php endif; ?>
     </div>
 
     <hr style="border-color:rgba(148,163,184,.28);margin:20px 0;">
 
     <form method="post" action="/admin/login" class="admin-login-grid">
       <input type="hidden" name="_csrf" value="<?= h((string) $csrf) ?>">
-      <input type="email" name="email" placeholder="Super Admin email" required>
-      <input type="password" name="password" placeholder="Fallback password" required>
+      <input type="email" name="email" placeholder="Super Admin email" autocomplete="username" required>
+      <input type="password" name="password" placeholder="Fallback password" autocomplete="current-password" required>
       <button type="submit" class="button button-secondary">Use local fallback login</button>
     </form>
 

@@ -9,6 +9,9 @@ $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $host = $_SERVER['HTTP_HOST'] ?? 'actatechnology.dk';
 $tenantKey = getTenantKeyFromHost($host);
 $clientIp = clientIpAddress();
+$isHttpsRequest = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (($_SERVER['SERVER_PORT'] ?? '') === '443')
+    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 
 Security::applyHttpHeaders();
 Security::setNoStoreForAdmin($path);
@@ -21,6 +24,7 @@ $mailer = new Mailer();
 
 function renderView(string $view, array $data = []): never
 {
+    $data = normalizeOutput($data);
     extract($data, EXTR_SKIP);
     require dirname(__DIR__) . '/views/' . $view . '.php';
     exit;
@@ -37,6 +41,60 @@ function adminRedirect(string $tab, string $status = 'ok', string $message = '')
 }
 
 try {
+    if ($method === 'GET' && $path === '/favicon.ico') {
+        header('Location: /assets/favicon.svg', true, 302);
+        exit;
+    }
+
+    if ($method === 'GET' && ($path === '/' || $path === '/da' || $path === '/en')) {
+        $consent = (string) ($_GET['cookie_consent'] ?? '');
+        if ($consent !== '') {
+            if ($consent === 'granted' || $consent === 'denied') {
+                setcookie('acta_analytics_consent', $consent, [
+                    'expires' => time() + 31536000,
+                    'path' => '/',
+                    'secure' => $isHttpsRequest,
+                    'httponly' => false,
+                    'samesite' => 'Lax',
+                ]);
+            }
+
+            $query = $_GET;
+            unset($query['cookie_consent']);
+            $redirectUrl = $path;
+            if ($query !== []) {
+                $redirectUrl .= '?' . http_build_query($query);
+            }
+            redirect($redirectUrl);
+        }
+    }
+
+    if ($method === 'POST' && $path === '/api/public/v1/cookie-consent') {
+        if (!$rateLimiter->allow('cookie_consent:' . $clientIp, 120, 900)) {
+            jsonResponse(['error' => 'Too many consent updates. Please wait.'], 429);
+        }
+
+        $payload = parseJsonBody();
+        if ($payload === []) {
+            $payload = $_POST;
+        }
+
+        $consent = (string) ($payload['consent'] ?? '');
+        if ($consent !== 'granted' && $consent !== 'denied') {
+            jsonResponse(['error' => 'Invalid consent value.'], 422);
+        }
+
+        setcookie('acta_analytics_consent', $consent, [
+            'expires' => time() + 31536000,
+            'path' => '/',
+            'secure' => $isHttpsRequest,
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
+
+        jsonResponse(['status' => 'ok']);
+    }
+
     if ($method === 'GET' && $path === '/api/public/v1/site-config') {
         $locale = ($_GET['locale'] ?? 'da') === 'en' ? 'en' : 'da';
         $branding = $repo->getBranding($tenantKey);
@@ -183,11 +241,14 @@ try {
             redirect('/admin/login?error=' . urlencode('Invalid fallback login.'));
         }
 
+        $missingGoogleConfig = $oauth->missingConfigurationKeys();
         renderView('admin/login', [
             'csrf' => csrfToken(),
             'error' => (string) ($_GET['error'] ?? ''),
             'status' => (string) ($_GET['status'] ?? ''),
             'message' => (string) ($_GET['message'] ?? ''),
+            'google_oauth_ready' => $missingGoogleConfig === [],
+            'google_oauth_missing' => $missingGoogleConfig,
         ]);
     }
 

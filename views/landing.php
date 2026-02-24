@@ -18,6 +18,9 @@ $footerItems = $footerMenu ?? [];
 $services = $services ?? [];
 $decks = $decks ?? [];
 $blogPosts = $blogPosts ?? [];
+$gaId = (string) env('GA4_MEASUREMENT_ID', '');
+$styleVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/style.css') ?: time());
+$scriptVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/landing.js') ?: time());
 
 $labels = [
     'admin' => $isEn ? 'Admin' : 'Administration',
@@ -29,9 +32,10 @@ $labels = [
     'servicesTitle' => $isEn ? 'Services built for growth' : 'Services til vækst',
     'servicesIntro' => $isEn ? 'Pick a focus area and continue to booking.' : 'Vælg et fokusområde og fortsæt til booking.',
     'storiesTitle' => $isEn ? 'Stories and deck flow' : 'Historier og deck flow',
-    'storiesIntro' => $isEn ? 'Continuous carousel with direct route to full player.' : 'Kontinuerlig carousel med direkte adgang til deck player.',
     'pause' => $isEn ? 'Pause' : 'Pause',
     'play' => $isEn ? 'Play' : 'Afspil',
+    'previous' => $isEn ? 'Previous' : 'Forrige',
+    'next' => $isEn ? 'Next' : 'Næste',
     'blogsTitle' => $isEn ? 'Latest updates' : 'Seneste opdateringer',
     'leadTitle' => $isEn ? 'Book a meeting' : 'Book et møde',
     'leadIntro' => $isEn ? 'Tell us what you need and we will follow up with booking options.' : 'Fortæl os hvad I har brug for, så følger vi op med bookingmuligheder.',
@@ -60,7 +64,8 @@ $labels = [
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/style.css?v=<?= h($styleVersion) ?>">
   <style>
     :root {
       --accent: <?= h($accentColor) ?>;
@@ -72,7 +77,12 @@ $labels = [
     }
   </style>
 </head>
-<body>
+<body
+  data-copy-play="<?= h($labels['play']) ?>"
+  data-copy-pause="<?= h($labels['pause']) ?>"
+  data-copy-thanks="<?= h($labels['thanks']) ?>"
+  data-ga-id="<?= h($gaId) ?>"
+>
   <div class="site-shell">
     <header class="topbar glass">
       <div class="brand">
@@ -134,14 +144,13 @@ $labels = [
     <section id="stories" class="section">
       <div class="section-header">
         <h2><?= h($labels['storiesTitle']) ?></h2>
-        <p><?= h($labels['storiesIntro']) ?></p>
       </div>
       <div class="carousel-shell glass">
         <div
           class="deck-carousel"
           data-carousel
           data-autoplay="true"
-          data-interval="<?= !empty($decks[0]['autoplay_interval_seconds']) ? (int) $decks[0]['autoplay_interval_seconds'] : 6 ?>"
+          data-interval="<?= !empty($decks[0]['autoplay_interval_seconds']) ? (int) $decks[0]['autoplay_interval_seconds'] : 4 ?>"
         >
           <div class="deck-track" data-carousel-track>
             <?php foreach ($decks as $deck): ?>
@@ -161,11 +170,22 @@ $labels = [
 
           <div class="carousel-controls">
             <div class="carousel-actions">
-              <button class="icon-btn" type="button" data-carousel-prev aria-label="Previous">&#10094;</button>
-              <button class="icon-btn" type="button" data-carousel-next aria-label="Next">&#10095;</button>
+              <button class="icon-btn" type="button" data-carousel-prev aria-label="<?= h($labels['previous']) ?>">
+                <span aria-hidden="true">&#10094;</span>
+              </button>
+              <button
+                class="icon-btn icon-btn-toggle"
+                type="button"
+                data-carousel-toggle
+                aria-label="<?= h($labels['pause']) ?>"
+                title="<?= h($labels['pause']) ?>"
+              >
+                <span data-carousel-toggle-icon aria-hidden="true">&#10074;&#10074;</span>
+              </button>
+              <button class="icon-btn" type="button" data-carousel-next aria-label="<?= h($labels['next']) ?>">
+                <span aria-hidden="true">&#10095;</span>
+              </button>
             </div>
-            <div class="carousel-dots" data-carousel-dots></div>
-            <button class="button button-secondary" type="button" data-carousel-toggle><?= h($labels['pause']) ?></button>
           </div>
         </div>
       </div>
@@ -193,10 +213,10 @@ $labels = [
         </div>
 
         <form id="lead-form" class="lead-form" data-locale="<?= $isEn ? 'en' : 'da' ?>">
-          <input name="name" type="text" placeholder="<?= h($labels['name']) ?>" required>
-          <input name="email" type="email" placeholder="<?= h($labels['email']) ?>" required>
-          <input name="company" type="text" placeholder="<?= h($labels['company']) ?>">
-          <input name="phone" type="text" placeholder="<?= h($labels['phone']) ?>">
+          <input name="name" type="text" placeholder="<?= h($labels['name']) ?>" autocomplete="name" required>
+          <input name="email" type="email" placeholder="<?= h($labels['email']) ?>" autocomplete="email" required>
+          <input name="company" type="text" placeholder="<?= h($labels['company']) ?>" autocomplete="organization">
+          <input name="phone" type="text" placeholder="<?= h($labels['phone']) ?>" autocomplete="tel">
           <select class="full" name="service_key" aria-label="<?= h($labels['service']) ?>">
             <option value=""><?= h($labels['service']) ?></option>
             <?php foreach ($services as $service): ?>
@@ -224,21 +244,11 @@ $labels = [
   <aside id="consent-banner" class="consent-banner glass" hidden>
     <p><?= h($labels['consentBanner']) ?></p>
     <div class="consent-actions">
-      <button class="button button-primary" type="button" data-consent="accept"><?= h($labels['acceptTracking']) ?></button>
-      <button class="button button-secondary" type="button" data-consent="reject"><?= h($labels['rejectTracking']) ?></button>
+      <a class="button button-primary" href="?cookie_consent=granted" data-consent="accept"><?= h($labels['acceptTracking']) ?></a>
+      <a class="button button-secondary" href="?cookie_consent=denied" data-consent="reject"><?= h($labels['rejectTracking']) ?></a>
     </div>
   </aside>
 
-  <script>
-    window.ACTA_COPY = {
-      play: <?= json_encode($labels['play']) ?>,
-      pause: <?= json_encode($labels['pause']) ?>,
-      thanks: <?= json_encode($labels['thanks']) ?>
-    };
-    window.ACTA_ANALYTICS = {
-      gaId: <?= json_encode((string) env('GA4_MEASUREMENT_ID', '')) ?>
-    };
-  </script>
-  <script src="/assets/landing.js" defer></script>
+  <script src="/assets/landing.js?v=<?= h($scriptVersion) ?>" defer></script>
 </body>
 </html>

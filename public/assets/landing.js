@@ -1,7 +1,51 @@
 (() => {
-  const copy = window.ACTA_COPY || { play: 'Play', pause: 'Pause', thanks: 'Thanks.' };
-  const analytics = window.ACTA_ANALYTICS || { gaId: '' };
+  const pageData = document.body ? document.body.dataset : {};
+  const copy = {
+    play: pageData.copyPlay || 'Play',
+    pause: pageData.copyPause || 'Pause',
+    thanks: pageData.copyThanks || 'Thanks.'
+  };
+  const analytics = { gaId: pageData.gaId || '' };
   const consentStorageKey = 'acta_analytics_consent';
+
+  const cookieName = `${consentStorageKey}=`;
+  const readConsent = () => {
+    try {
+      const fromStorage = localStorage.getItem(consentStorageKey);
+      if (fromStorage) {
+        return fromStorage;
+      }
+    } catch (_error) {
+      // Ignore storage access errors and fallback to cookies.
+    }
+
+    const cookies = document.cookie.split(';').map((item) => item.trim());
+    for (const cookie of cookies) {
+      if (cookie.startsWith(cookieName)) {
+        return decodeURIComponent(cookie.slice(cookieName.length));
+      }
+    }
+    return '';
+  };
+
+  const writeConsent = (value) => {
+    let persisted = false;
+    try {
+      localStorage.setItem(consentStorageKey, value);
+      persisted = true;
+    } catch (_error) {
+      // Ignore and fallback to cookies.
+    }
+
+    try {
+      document.cookie = `${consentStorageKey}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/; SameSite=Lax`;
+      persisted = true;
+    } catch (_error) {
+      // Ignore.
+    }
+
+    return persisted;
+  };
 
   const loadGaIfConfigured = () => {
     if (!analytics.gaId || window.gtag) {
@@ -21,21 +65,58 @@
     window.gtag('config', analytics.gaId);
   };
 
+  const syncConsentWithServer = async (value) => {
+    try {
+      await fetch('/api/public/v1/cookie-consent', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ consent: value }),
+        keepalive: true
+      });
+    } catch (_error) {
+      // Ignore; link fallback still works without JS.
+    }
+  };
+
   const consentBanner = document.getElementById('consent-banner');
-  const consentValue = localStorage.getItem(consentStorageKey);
+  const consentValue = readConsent();
   if (consentValue === 'granted') {
     loadGaIfConfigured();
-  } else if (consentBanner) {
-    consentBanner.hidden = false;
-    consentBanner.querySelector('[data-consent=\"accept\"]')?.addEventListener('click', () => {
-      localStorage.setItem(consentStorageKey, 'granted');
-      consentBanner.hidden = true;
-      loadGaIfConfigured();
-    });
+  }
 
-    consentBanner.querySelector('[data-consent=\"reject\"]')?.addEventListener('click', () => {
-      localStorage.setItem(consentStorageKey, 'denied');
+  if (consentBanner && consentValue !== 'granted' && consentValue !== 'denied') {
+    consentBanner.hidden = false;
+
+    const applyConsent = (value) => {
+      writeConsent(value);
+      syncConsentWithServer(value);
       consentBanner.hidden = true;
+      if (value === 'granted') {
+        loadGaIfConfigured();
+      }
+    };
+
+    document.addEventListener('click', (event) => {
+      const origin = event.target instanceof Element ? event.target : null;
+      if (!origin) {
+        return;
+      }
+
+      const target = origin.closest('[data-consent]');
+      if (!target || !consentBanner.contains(target)) {
+        return;
+      }
+
+      const mode = target.getAttribute('data-consent');
+      if (mode !== 'accept' && mode !== 'reject') {
+        return;
+      }
+
+      event.preventDefault();
+      applyConsent(mode === 'accept' ? 'granted' : 'denied');
     });
   }
 
@@ -43,54 +124,100 @@
   if (carouselRoot) {
     const track = carouselRoot.querySelector('[data-carousel-track]');
     const cards = Array.from(track ? track.children : []);
-    const dotsRoot = carouselRoot.querySelector('[data-carousel-dots]');
     const prevBtn = carouselRoot.querySelector('[data-carousel-prev]');
     const nextBtn = carouselRoot.querySelector('[data-carousel-next]');
     const toggleBtn = carouselRoot.querySelector('[data-carousel-toggle]');
+    const toggleIcon = toggleBtn ? toggleBtn.querySelector('[data-carousel-toggle-icon]') : null;
 
     let index = 0;
-    let paused = false;
     let timer = null;
-    const intervalSeconds = Math.max(3, Number(carouselRoot.getAttribute('data-interval') || 6));
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const autoplayEnabled = carouselRoot.getAttribute('data-autoplay') !== 'false';
+    const configuredInterval = Number(carouselRoot.getAttribute('data-interval') || '');
+    const intervalSeconds = Number.isFinite(configuredInterval) && configuredInterval > 0
+      ? Math.max(2, Math.min(configuredInterval, 4))
+      : 4;
+    let paused = !autoplayEnabled;
 
-    if (reducedMotion) {
+    if (cards.length <= 1) {
       paused = true;
     }
 
-    const update = () => {
-      if (!track || cards.length === 0) {
+    const normalizeIndex = (value) => {
+      if (cards.length === 0) {
+        return 0;
+      }
+      return ((value % cards.length) + cards.length) % cards.length;
+    };
+
+    const relativeDistance = (cardIndex) => {
+      let distance = cardIndex - index;
+      const half = cards.length / 2;
+      if (distance > half) {
+        distance -= cards.length;
+      } else if (distance < -half) {
+        distance += cards.length;
+      }
+      return distance;
+    };
+
+    const updateToggleControl = () => {
+      if (!toggleBtn) {
         return;
       }
-      const firstCard = cards[0];
-      const gap = Number.parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap || '0') || 0;
-      const step = firstCard.getBoundingClientRect().width + gap;
-      track.style.transform = `translateX(${-index * step}px)`;
 
-      if (dotsRoot) {
-        Array.from(dotsRoot.children).forEach((node, dotIndex) => {
-          node.setAttribute('aria-current', dotIndex === index ? 'true' : 'false');
-        });
-      }
-
-      if (toggleBtn) {
-        toggleBtn.textContent = paused ? copy.play : copy.pause;
+      const label = paused ? copy.play : copy.pause;
+      toggleBtn.setAttribute('aria-label', label);
+      toggleBtn.setAttribute('title', label);
+      toggleBtn.setAttribute('aria-pressed', paused ? 'true' : 'false');
+      if (toggleIcon) {
+        toggleIcon.textContent = paused ? '▶' : '❚❚';
       }
     };
 
-    const next = () => {
-      if (cards.length === 0) {
+    const update = () => {
+      if (!track || cards.length === 0) {
+        updateToggleControl();
         return;
       }
-      index = (index + 1) % cards.length;
+
+      cards.forEach((card, cardIndex) => {
+        const distance = relativeDistance(cardIndex);
+        card.classList.remove('is-active', 'is-prev', 'is-next', 'is-hidden');
+        card.setAttribute('aria-hidden', 'true');
+
+        if (distance === 0) {
+          card.classList.add('is-active');
+          card.style.zIndex = '30';
+          card.setAttribute('aria-hidden', 'false');
+          return;
+        }
+
+        if (Math.abs(distance) === 1) {
+          card.classList.add(distance < 0 ? 'is-prev' : 'is-next');
+          card.style.zIndex = '20';
+          return;
+        }
+
+        card.classList.add('is-hidden');
+        card.style.zIndex = '10';
+      });
+
+      updateToggleControl();
+    };
+
+    const next = () => {
+      if (cards.length <= 1) {
+        return;
+      }
+      index = normalizeIndex(index + 1);
       update();
     };
 
     const prev = () => {
-      if (cards.length === 0) {
+      if (cards.length <= 1) {
         return;
       }
-      index = (index - 1 + cards.length) % cards.length;
+      index = normalizeIndex(index - 1);
       update();
     };
 
@@ -109,43 +236,12 @@
       timer = setInterval(next, intervalSeconds * 1000);
     };
 
-    const pauseTemporarily = () => {
-      paused = true;
-      update();
-      stop();
-    };
-
-    const resumeIfPossible = () => {
-      if (!carouselRoot.matches(':hover') && !carouselRoot.matches(':focus-within')) {
-        paused = false;
-        update();
-        start();
-      }
-    };
-
-    if (dotsRoot) {
-      cards.forEach((_, dotIndex) => {
-        const dot = document.createElement('button');
-        dot.type = 'button';
-        dot.className = 'carousel-dot';
-        dot.setAttribute('aria-label', `Slide ${dotIndex + 1}`);
-        dot.addEventListener('click', () => {
-          index = dotIndex;
-          pauseTemporarily();
-          update();
-        });
-        dotsRoot.appendChild(dot);
-      });
-    }
-
     prevBtn?.addEventListener('click', () => {
       prev();
-      pauseTemporarily();
     });
 
     nextBtn?.addEventListener('click', () => {
       next();
-      pauseTemporarily();
     });
 
     toggleBtn?.addEventListener('click', () => {
@@ -158,28 +254,26 @@
       }
     });
 
-    carouselRoot.addEventListener('mouseenter', pauseTemporarily);
-    carouselRoot.addEventListener('focusin', pauseTemporarily);
-    carouselRoot.addEventListener('mouseleave', resumeIfPossible);
-    carouselRoot.addEventListener('focusout', () => {
-      setTimeout(resumeIfPossible, 10);
-    });
-
     document.addEventListener('keydown', (event) => {
       if (!carouselRoot) {
         return;
       }
+
+      if (event.target instanceof Element) {
+        const tag = event.target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+          return;
+        }
+      }
+
       if (event.key === 'ArrowRight') {
         next();
-        pauseTemporarily();
       }
       if (event.key === 'ArrowLeft') {
         prev();
-        pauseTemporarily();
       }
     });
 
-    window.addEventListener('resize', update);
     update();
     start();
   }
