@@ -39,7 +39,13 @@ This repository contains an MVP implementation of the ActaTechnology landing pla
    ```
 4. Open the app:
    - Landing page: `http://localhost:8081`
-   - Mail inbox (Mailpit): `http://localhost:8026`
+   - Mail inbox (Mailpit): `http://localhost:8026` by default
+
+If port `8026` is occupied, select another host port without changing the container port:
+
+```bash
+MAILPIT_PORT=8027 docker compose up -d --build
+```
 
 The stack includes:
 - `app` (PHP 8.3 + Apache, routed through `public/`)

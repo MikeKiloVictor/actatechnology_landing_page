@@ -58,7 +58,7 @@ services:
     container_name: actatechnology_mailpit
     restart: unless-stopped
     ports:
-      - "8026:8025"
+      - "${MAILPIT_PORT:-8026}:8025"
 
 volumes:
   db_data:
