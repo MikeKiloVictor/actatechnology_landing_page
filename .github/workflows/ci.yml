@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -21,7 +21,7 @@ jobs:
           extensions: pdo_mysql, curl
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -35,12 +35,12 @@ jobs:
       matrix:
         site: [actagroup, actaconsult, actatechnology]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build isolated artifacts
         run: bash scripts/build-artifacts.sh
       - name: Verify artifact isolation
         run: bash scripts/verify-artifact.sh "${{ matrix.site }}" "dist/${{ matrix.site }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: "${{ matrix.site }}-${{ github.sha }}"
           path: "dist/${{ matrix.site }}"
