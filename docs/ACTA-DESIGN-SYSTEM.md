@@ -16,9 +16,9 @@ noise).
 | Decision | Value |
 |---|---|
 | Delivery mechanism | One `sites/<tenant>/theme.css` per tenant, copied into each artifact by `scripts/build-artifacts.sh` and served at `/assets/theme.css`. |
-| Namespacing | Every tenant-specific rule is scoped under `html[data-site="<tenant>"]`. This wins over the CMS-driven inline `<style>` in `views/landing.php` (`:root` / `body`) by specificity, so no shared-file changes are needed for colors, fonts or backgrounds. |
-| Shared markup | `views/landing.php` may only change behind a tenant condition that provably leaves other tenants' output byte-identical (used once, for the wordmark — see §4). |
-| Fonts | Inter is loaded via `@import` at the top of the tenant `theme.css`. CSP already allows `fonts.googleapis.com` (style-src) and `fonts.gstatic.com` (font-src). Because `theme.css` is per-tenant, only migrated tenants load Inter. |
+| Namespacing | Every tenant-specific runtime selector is scoped under `html[data-site="<tenant>"]`. Artifact-local legacy `:root` tokens and the uniquely named keyframe are the only exceptions. Scoped selectors win over the CMS-driven inline `<style>` in `views/landing.php` (`:root` / `body`) by specificity. |
+| Shared markup | `views/landing.php` may only change behind tenant-aware values that provably leave other tenants' output byte-identical (wordmark, font URL and footer label - see section 4). |
+| Fonts | The shared template selects Inter only for migrated tenants and otherwise preserves the existing Manrope/Space Grotesk link. CSP already allows `fonts.googleapis.com` (style-src) and `fonts.gstatic.com` (font-src). No CSS `@import` is used. |
 | CMS compatibility | CMS branding (hero copy, menus, services, logo upload, lead flow) is untouched. If an admin uploads a `logo_url`, it replaces the CSS wordmark (see §4). CMS `accent_color` / `background_gradient` are intentionally overridden by the theme for migrated tenants — the theme is authoritative for the Acta look. |
 | Tenant isolation | Unchanged: host validation (`SiteRegistry::resolve`), artifact isolation (`verify-artifact.sh`), per-artifact `SITE_KEY`. |
 | Legacy tokens | The old `--site-accent` / `--site-surface` / `--site-ink` / `--site-heading-font` tokens in `sites/*/theme.css` are referenced nowhere in views/JS/shared CSS (verified 2026-07-11). They are kept, updated to the new values, for backwards safety. |
@@ -45,13 +45,13 @@ Weights loaded: 400, 500, 600, 700, 800.
 
 | Role | Spec |
 |---|---|
-| Display (hero h1) | `clamp(2.75rem, 6vw, 4.75rem)` · weight 700 · line-height 1.04 · letter-spacing −0.035em · silver gradient fill `linear-gradient(180deg, #F2F4F6 0%, #D7DBE0 55%, #8E97A1 100%)` (background-clip: text; solid `--acta-silver-hi` fallback). |
-| Section title (h2) | `clamp(1.7rem, 2.6vw, 2.3rem)` · weight 700 · letter-spacing −0.02em · color `--acta-silver-hi`. |
-| Card title (h3) | `1.15rem` · weight 600 · letter-spacing −0.01em · color `--acta-silver-hi`. |
+| Display (hero h1) | `clamp(2.75rem, 6vw, 4.75rem)` · weight 700 · line-height 1.04 · letter-spacing `0` · silver gradient fill `linear-gradient(180deg, #F2F4F6 0%, #D7DBE0 55%, #8E97A1 100%)` (background-clip: text; solid `--acta-silver-hi` fallback). |
+| Section title (h2) | `clamp(1.7rem, 2.6vw, 2.3rem)` · weight 700 · letter-spacing `0` · color `--acta-silver-hi`. |
+| Card title (h3) | `1.15rem` · weight 600 · letter-spacing `0` · color `--acta-silver-hi`. |
 | Lead / hero subtitle | `1.13rem` · weight 400 · line-height 1.65 · color `--acta-text-muted` · max-width 62ch. |
 | Body | `1rem` · line-height 1.6 · color `--acta-text`. |
 | Small / meta | `0.875rem` · color `--acta-text-muted`. |
-| Overline / nav | `0.78rem` · weight 600 · uppercase · letter-spacing 0.08em. |
+| Overline / nav | `0.78rem` · weight 600 · uppercase · letter-spacing `0`. |
 
 ### 2.3 Spacing & shape
 
@@ -92,15 +92,15 @@ Lead flow, consent checkbox and status messaging keep their existing markup and 
 
 ### 2.7 Accessibility
 
-- Contrast: body text `#C6CCD3` on `#16191D` ≈ 12:1; muted `#8F98A2` on `#16191D` ≈ 6.3:1;
-  primary button ink `#10151A` on any brand color ≥ 8:1. All ≥ WCAG AA.
+- Contrast: body text `#C6CCD3` on `#16191D` ≈ 10.9:1; muted `#8F98A2` on `#16191D` ≈ 6.03:1.
+  Primary button ink `#10151A`: Consult ≈ 10.04:1, Group ≈ 9.8:1, Technology ≈ 6.45:1. All ≥ WCAG AA.
 - Visible `:focus-visible` on every link, button, and form control (§2.4).
 - Existing semantics preserved: `aria-label`s on navs/carousel controls, `role="status"`
   `aria-live="polite"` on the lead result, keyboard-operable carousel buttons.
 
 ## 3. Wordmark contract (all three sites)
 
-The brand lockup is: **dot + "Acta" + suffix**, set in Inter 700, tracking −0.02em.
+The brand lockup is: **dot + "Acta" + suffix**, set in Inter 700 with letter-spacing `0`.
 
 | Part | Color rule |
 |---|---|
@@ -122,11 +122,11 @@ degrades gracefully to the plain-text brand block.
 
 ## 4. Shared-markup change budget (what this slice touched)
 
-Exactly one conditional block in `views/landing.php` (the header brand lockup), guarded by
-`$tenantKey === 'actaconsult'`. For `actagroup` and `actatechnology` the emitted HTML is
-byte-identical to commit `9ab9a20` (verified by rendering both tenants against the old and the
-new template and diffing — see the slice report). No other shared file changed; `public/assets/style.css`,
-`sites/actagroup/theme.css` and `sites/actatechnology/theme.css` are untouched.
+The shared template has three Consult-aware values: the header wordmark, the Google Fonts URL and
+the footer label. All are guarded by `$tenantKey === 'actaconsult'`. For `actagroup` and
+`actatechnology` the emitted HTML must remain byte-identical to commit `9ab9a20`. No other shared
+file changed; `public/assets/style.css`, `sites/actagroup/theme.css` and
+`sites/actatechnology/theme.css` are untouched.
 
 ## 5. Brand variants
 

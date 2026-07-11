@@ -5,8 +5,6 @@
    html[data-site="actaconsult"] so the other tenants are untouched.
    ============================================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
-
 /* Legacy per-site tokens (referenced nowhere at runtime; kept for safety) */
 :root {
   --site-accent: #a7c4d4;
@@ -93,7 +91,7 @@ html[data-site="actaconsult"] .menu a {
   font-size: 0.78rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   color: var(--acta-text-muted);
   border: none;
   border-radius: 8px;
@@ -113,7 +111,7 @@ html[data-site="actaconsult"] .acta-wordmark {
   align-items: center;
   margin: 0;
   font: 700 1.18rem/1.1 var(--font-heading);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 html[data-site="actaconsult"] .acta-dot {
@@ -165,7 +163,7 @@ html[data-site="actaconsult"] .hero h1 {
   font-size: clamp(2.75rem, 6vw, 4.75rem);
   font-weight: 700;
   line-height: 1.04;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   color: var(--acta-silver-hi);
   background: linear-gradient(180deg, #f2f4f6 0%, #d7dbe0 55%, #8e97a1 100%);
   -webkit-background-clip: text;
@@ -218,6 +216,7 @@ html[data-site="actaconsult"] .button {
   padding: 13px 24px;
   font-weight: 600;
   font-size: 0.95rem;
+  letter-spacing: 0;
   transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease,
     transform 120ms ease;
 }
@@ -263,7 +262,7 @@ html[data-site="actaconsult"] .section-header {
 html[data-site="actaconsult"] .section-header h2 {
   font-size: clamp(1.7rem, 2.6vw, 2.3rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--acta-silver-hi);
 }
 
@@ -293,7 +292,7 @@ html[data-site="actaconsult"] .service-card h3,
 html[data-site="actaconsult"] .blog-card h3 {
   font-size: 1.15rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: var(--acta-silver-hi);
 }
 
@@ -344,7 +343,7 @@ html[data-site="actaconsult"] .deck-card-overlay {
 
 html[data-site="actaconsult"] .deck-card-content h3 {
   color: var(--acta-silver-hi);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 html[data-site="actaconsult"] .deck-card-content p {
@@ -415,6 +414,11 @@ html[data-site="actaconsult"] input[type="checkbox"] {
 
 html[data-site="actaconsult"] .lead-note {
   color: var(--acta-text-muted);
+}
+
+html[data-site="actaconsult"] .brand-name,
+html[data-site="actaconsult"] .status-chip {
+  letter-spacing: 0;
 }
 
 /* ------------------------------------------------------------
