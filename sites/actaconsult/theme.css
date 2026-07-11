@@ -1,0 +1,9 @@
+:root {
+  --site-accent: #b84e3a;
+  --site-accent-strong: #743326;
+  --site-surface: #faf5f3;
+  --site-ink: #211817;
+  --site-heading-font: Georgia, "Times New Roman", serif;
+}
+
+html[data-site="actaconsult"] .hero { background: linear-gradient(135deg, #faf5f3, #efe0da); }

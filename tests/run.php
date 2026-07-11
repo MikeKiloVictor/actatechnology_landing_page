@@ -37,8 +37,14 @@ function setEnvValue(string $key, ?string $value): void
 }
 
 assertSameValue('hello-world', slugify('Hello World'), 'slugify should normalize whitespace and case');
-assertSameValue('main', getTenantKeyFromHost('actatechnology.dk'), 'root domain should map to main tenant');
-assertSameValue('demo', getTenantKeyFromHost('demo.actatechnology.dk'), 'subdomain should map to tenant key');
+$registry = new SiteRegistry();
+assertSameValue('actatechnology', $registry->resolve('actatechnology.dk'), 'technology domain should map to technology site');
+assertSameValue('actagroup', $registry->resolve('www.actagroup.dk'), 'www group domain should map to group site');
+assertSameValue('actaconsult', $registry->resolve('actaconsult.dk'), 'consult domain should map to consult site');
+assertSameValue(null, $registry->resolve('unknown.example'), 'unknown host must be rejected');
+assertSameValue('actagroup', $registry->resolve('localhost:8083', 'actagroup'), 'fixed artifacts should allow localhost');
+assertSameValue(null, $registry->resolve('actaconsult.dk', 'actagroup'), 'fixed artifacts must reject another production host');
+assertSameValue(null, $registry->resolve('localhost', 'unknown'), 'unknown artifact site key must be rejected');
 
 $params = routeMatches('/api/public/v1/deck/my-story', '/api/public/v1/deck/{slug}');
 assertTrue(is_array($params), 'route should match deck pattern');

@@ -1,0 +1,9 @@
+:root {
+  --site-accent: #2d6682;
+  --site-accent-strong: #1b4357;
+  --site-surface: #f3f7f9;
+  --site-ink: #111827;
+  --site-heading-font: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+html[data-site="actatechnology"] .hero { background: linear-gradient(135deg, #eff6f9, #dbeaf1); }

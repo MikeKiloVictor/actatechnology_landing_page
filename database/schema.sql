@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS core_users (
   updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS core_user_site_access (
+  user_id BIGINT UNSIGNED NOT NULL,
+  tenant_key VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, tenant_key),
+  CONSTRAINT fk_user_site_user FOREIGN KEY (user_id) REFERENCES core_users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_site_tenant FOREIGN KEY (tenant_key) REFERENCES core_tenants(tenant_key) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS core_admin_invites (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(190) NOT NULL UNIQUE,
@@ -40,6 +49,15 @@ CREATE TABLE IF NOT EXISTS core_admin_invites (
   updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_invite_org FOREIGN KEY (org_profile_id) REFERENCES core_org_profiles(id) ON DELETE SET NULL,
   CONSTRAINT fk_invite_user FOREIGN KEY (invited_by_user_id) REFERENCES core_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS core_invite_site_access (
+  invite_id BIGINT UNSIGNED NOT NULL,
+  tenant_key VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (invite_id, tenant_key),
+  CONSTRAINT fk_invite_site_invite FOREIGN KEY (invite_id) REFERENCES core_admin_invites(id) ON DELETE CASCADE,
+  CONSTRAINT fk_invite_site_tenant FOREIGN KEY (tenant_key) REFERENCES core_tenants(tenant_key) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS core_user_identities (
@@ -64,6 +82,19 @@ CREATE TABLE IF NOT EXISTS core_auth_events (
   status VARCHAR(40) NOT NULL,
   details TEXT NULL,
   created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS core_audit_events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NULL,
+  tenant_key VARCHAR(64) NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  object_type VARCHAR(80) NULL,
+  object_id VARCHAR(100) NULL,
+  created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_audit_site_created (tenant_key, created_at),
+  CONSTRAINT fk_audit_user FOREIGN KEY (user_id) REFERENCES core_users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_audit_tenant FOREIGN KEY (tenant_key) REFERENCES core_tenants(tenant_key) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS main_branding (

@@ -6,7 +6,9 @@ final class Mailer
 {
     public function sendLeadNotification(array $lead, string $tenantKey): bool
     {
-        $to = env('LEAD_NOTIFY_TO', env('SMTP_FROM', ''));
+        $site = (new SiteRegistry())->get($tenantKey);
+        $recipientEnv = (string) ($site['lead_recipient_env'] ?? 'LEAD_NOTIFY_TO');
+        $to = env($recipientEnv, env('LEAD_NOTIFY_TO', env('SMTP_FROM', '')));
         $from = env('SMTP_FROM', 'no-reply@actatechnology.dk');
 
         if ($to === '') {

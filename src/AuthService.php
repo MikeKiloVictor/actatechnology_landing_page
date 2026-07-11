@@ -31,6 +31,24 @@ final class AuthService
         return $user;
     }
 
+    public function requireSiteAccess(string $tenantKey): array
+    {
+        $user = $this->requireAdmin();
+        if (!$this->repository->userCanAccessSite($user, $tenantKey)) {
+            http_response_code(403);
+            throw new RuntimeException('Access to the selected site is denied.');
+        }
+        return $user;
+    }
+
+    public function availableSiteKeys(array $user): array
+    {
+        if (($user['role'] ?? '') === 'super_admin') {
+            return array_keys((new SiteRegistry())->all());
+        }
+        return $this->repository->listUserSiteKeys((int) ($user['id'] ?? 0));
+    }
+
     public function loginLocal(string $email, string $password): bool
     {
         $email = strtolower(trim($email));
@@ -96,6 +114,8 @@ final class AuthService
             }
             $userId = (int) $user['id'];
         }
+
+        $this->repository->syncUserSitesFromInvite($userId, (int) $invite['id']);
 
         $this->repository->upsertGoogleIdentity($userId, $subject, $email);
         $this->establishSession($userId);

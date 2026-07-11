@@ -110,10 +110,10 @@ final class ContentRepository
         ]);
     }
 
-    public function deleteMenuItem(int $id): void
+    public function deleteMenuItem(string $tenantKey, int $id): void
     {
-        $stmt = $this->db->prepare('DELETE FROM main_menu_items WHERE id = :id');
-        $stmt->execute(['id' => $id]);
+        $stmt = $this->db->prepare('DELETE FROM main_menu_items WHERE id = :id AND tenant_key = :tenant');
+        $stmt->execute(['id' => $id, 'tenant' => $tenantKey]);
     }
 
     public function getServices(string $tenantKey, string $locale): array
@@ -147,10 +147,10 @@ final class ContentRepository
         ]);
     }
 
-    public function deleteService(int $id): void
+    public function deleteService(string $tenantKey, int $id): void
     {
-        $stmt = $this->db->prepare('DELETE FROM main_services WHERE id = :id');
-        $stmt->execute(['id' => $id]);
+        $stmt = $this->db->prepare('DELETE FROM main_services WHERE id = :id AND tenant_key = :tenant');
+        $stmt->execute(['id' => $id, 'tenant' => $tenantKey]);
     }
 
     public function listDecks(string $tenantKey, string $locale, bool $publishedOnly = true): array
@@ -340,8 +340,9 @@ final class ContentRepository
         return $deckId;
     }
 
-    public function updateDeck(int $deckId, array $data): void
+    public function updateDeck(string $tenantKey, int $deckId, array $data): void
     {
+        $this->assertDeckOwnedBySite($tenantKey, $deckId);
         $stmt = $this->db->prepare('UPDATE main_decks SET sort_order = :sort_order, publish_state = :publish_state, is_active = :is_active, image_url = :image_url, gradient_from = :gradient_from, gradient_to = :gradient_to, custom_color_start = :custom_color_start, custom_color_end = :custom_color_end, title_font_family = :title_font_family, title_font_weight = :title_font_weight, title_font_size = :title_font_size, title_line_height = :title_line_height, body_font_family = :body_font_family, body_font_weight = :body_font_weight, body_font_size = :body_font_size, body_line_height = :body_line_height, autoplay_enabled = :autoplay_enabled, autoplay_interval_seconds = :autoplay_interval_seconds WHERE id = :id');
         $stmt->execute([
             'id' => $deckId,
@@ -382,14 +383,15 @@ final class ContentRepository
         ]);
     }
 
-    public function deleteDeck(int $deckId): void
+    public function deleteDeck(string $tenantKey, int $deckId): void
     {
-        $stmt = $this->db->prepare('DELETE FROM main_decks WHERE id = :id');
-        $stmt->execute(['id' => $deckId]);
+        $stmt = $this->db->prepare('DELETE FROM main_decks WHERE id = :id AND tenant_key = :tenant');
+        $stmt->execute(['id' => $deckId, 'tenant' => $tenantKey]);
     }
 
-    public function createSlide(int $deckId, array $data): int
+    public function createSlide(string $tenantKey, int $deckId, array $data): int
     {
+        $this->assertDeckOwnedBySite($tenantKey, $deckId);
         $stmt = $this->db->prepare('INSERT INTO main_deck_slides (deck_id, slide_order, publish_state, is_active, image_url, link_label, link_url) VALUES (:deck_id, :slide_order, :publish_state, :is_active, :image_url, :link_label, :link_url)');
         $stmt->execute([
             'deck_id' => $deckId,
@@ -419,8 +421,9 @@ final class ContentRepository
         return $slideId;
     }
 
-    public function updateSlide(int $slideId, array $data): void
+    public function updateSlide(string $tenantKey, int $slideId, array $data): void
     {
+        $this->assertSlideOwnedBySite($tenantKey, $slideId);
         $stmt = $this->db->prepare('UPDATE main_deck_slides SET slide_order = :slide_order, publish_state = :publish_state, is_active = :is_active, image_url = :image_url, link_label = :link_label, link_url = :link_url WHERE id = :id');
         $stmt->execute([
             'id' => $slideId,
@@ -447,10 +450,28 @@ final class ContentRepository
         ]);
     }
 
-    public function deleteSlide(int $slideId): void
+    public function deleteSlide(string $tenantKey, int $slideId): void
     {
-        $stmt = $this->db->prepare('DELETE FROM main_deck_slides WHERE id = :id');
-        $stmt->execute(['id' => $slideId]);
+        $stmt = $this->db->prepare('DELETE s FROM main_deck_slides s INNER JOIN main_decks d ON d.id = s.deck_id WHERE s.id = :id AND d.tenant_key = :tenant');
+        $stmt->execute(['id' => $slideId, 'tenant' => $tenantKey]);
+    }
+
+    private function assertDeckOwnedBySite(string $tenantKey, int $deckId): void
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM main_decks WHERE id = :id AND tenant_key = :tenant');
+        $stmt->execute(['id' => $deckId, 'tenant' => $tenantKey]);
+        if ($stmt->fetchColumn() === false) {
+            throw new RuntimeException('Deck is outside the active site.');
+        }
+    }
+
+    private function assertSlideOwnedBySite(string $tenantKey, int $slideId): void
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM main_deck_slides s INNER JOIN main_decks d ON d.id = s.deck_id WHERE s.id = :id AND d.tenant_key = :tenant');
+        $stmt->execute(['id' => $slideId, 'tenant' => $tenantKey]);
+        if ($stmt->fetchColumn() === false) {
+            throw new RuntimeException('Slide is outside the active site.');
+        }
     }
 
     public function getLeads(string $tenantKey, int $limit = 100): array
@@ -492,9 +513,10 @@ final class ContentRepository
         return $stmt->fetchAll();
     }
 
-    public function listInvites(): array
+    public function listInvites(string $tenantKey): array
     {
-        $stmt = $this->db->query('SELECT i.*, o.code AS org_code, o.label AS org_label FROM core_admin_invites i LEFT JOIN core_org_profiles o ON o.id = i.org_profile_id ORDER BY i.created_at DESC');
+        $stmt = $this->db->prepare('SELECT i.*, o.code AS org_code, o.label AS org_label FROM core_admin_invites i INNER JOIN core_invite_site_access a ON a.invite_id = i.id AND a.tenant_key = :tenant LEFT JOIN core_org_profiles o ON o.id = i.org_profile_id ORDER BY i.created_at DESC');
+        $stmt->execute(['tenant' => $tenantKey]);
         return $stmt->fetchAll();
     }
 
@@ -511,6 +533,11 @@ final class ContentRepository
             'expires_at' => !empty($data['expires_at']) ? $data['expires_at'] : null,
             'invited_by_user_id' => !empty($data['invited_by_user_id']) ? (int) $data['invited_by_user_id'] : null,
         ]);
+        $invite = $this->findInviteByEmail((string) ($data['email'] ?? ''));
+        if ($invite !== [] && !empty($data['tenant_key'])) {
+            $access = $this->db->prepare('INSERT IGNORE INTO core_invite_site_access (invite_id, tenant_key) VALUES (:invite, :tenant)');
+            $access->execute(['invite' => (int) $invite['id'], 'tenant' => (string) $data['tenant_key']]);
+        }
     }
 
     public function listOrgProfiles(): array
@@ -568,6 +595,33 @@ final class ContentRepository
         ]);
 
         return (int) $this->db->lastInsertId();
+    }
+
+    public function syncUserSitesFromInvite(int $userId, int $inviteId): void
+    {
+        $stmt = $this->db->prepare('INSERT IGNORE INTO core_user_site_access (user_id, tenant_key) SELECT :user, tenant_key FROM core_invite_site_access WHERE invite_id = :invite');
+        $stmt->execute(['user' => $userId, 'invite' => $inviteId]);
+    }
+
+    public function listUserSiteKeys(int $userId): array
+    {
+        $stmt = $this->db->prepare('SELECT tenant_key FROM core_user_site_access WHERE user_id = :user ORDER BY tenant_key');
+        $stmt->execute(['user' => $userId]);
+        return array_map(static fn(array $row): string => (string) $row['tenant_key'], $stmt->fetchAll());
+    }
+
+    public function userCanAccessSite(array $user, string $tenantKey): bool
+    {
+        if (($user['role'] ?? '') === 'super_admin') {
+            return (new SiteRegistry())->has($tenantKey);
+        }
+        return in_array($tenantKey, $this->listUserSiteKeys((int) ($user['id'] ?? 0)), true);
+    }
+
+    public function logAuditEvent(int $userId, string $tenantKey, string $action, ?string $objectType = null, ?string $objectId = null): void
+    {
+        $stmt = $this->db->prepare('INSERT INTO core_audit_events (user_id, tenant_key, action, object_type, object_id) VALUES (:user, :tenant, :action, :object_type, :object_id)');
+        $stmt->execute(['user' => $userId, 'tenant' => $tenantKey, 'action' => $action, 'object_type' => $objectType, 'object_id' => $objectId]);
     }
 
     public function updateUserLastLogin(int $userId): void

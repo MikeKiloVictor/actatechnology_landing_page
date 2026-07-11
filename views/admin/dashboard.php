@@ -11,13 +11,16 @@ $countLeads = is_array($leads ?? null) ? count($leads) : 0;
 $countInvites = is_array($invites ?? null) ? count($invites) : 0;
 
 $branding = is_array($branding ?? null) ? $branding : [];
+$activeSiteKey = (string) ($activeSiteKey ?? 'actatechnology');
+$availableSites = is_array($availableSites ?? null) ? $availableSites : [];
+$activeSiteLabel = (string) ($availableSites[$activeSiteKey]['label'] ?? $activeSiteKey);
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin | ActaTechnology</title>
+  <title>Admin | <?= h($activeSiteLabel) ?></title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,9 +33,18 @@ $branding = is_array($branding ?? null) ? $branding : [];
       <h3 style="margin-top:0;">Admin</h3>
       <p class="muted" style="margin-top:0;">Signed in as <strong><?= h((string) ($user['email'] ?? '')) ?></strong></p>
 
+      <p class="muted" style="margin-bottom:6px;">Site section</p>
+      <nav aria-label="Site sections">
+        <?php foreach ($availableSites as $siteKey => $site): ?>
+          <a href="/admin?site=<?= h((string) $siteKey) ?>" class="<?= $activeSiteKey === $siteKey ? 'active' : '' ?>"><?= h((string) ($site['label'] ?? $siteKey)) ?></a>
+        <?php endforeach; ?>
+      </nav>
+
+      <hr style="border-color:rgba(148,163,184,.25);margin:12px 0;">
+
       <nav>
         <?php foreach (['overview' => 'Overview', 'branding' => 'Branding', 'menus' => 'Menus', 'services' => 'Services', 'decks' => 'Decks + Slides', 'leads' => 'Lead Inbox', 'identity' => 'Identity', 'import_export' => 'Import/Export'] as $key => $label): ?>
-          <a href="/admin?tab=<?= h($key) ?>" class="<?= $currentTab === $key ? 'active' : '' ?>"><?= h($label) ?></a>
+          <a href="/admin?site=<?= h($activeSiteKey) ?>&amp;tab=<?= h($key) ?>" class="<?= $currentTab === $key ? 'active' : '' ?>"><?= h($label) ?></a>
         <?php endforeach; ?>
       </nav>
 
@@ -50,7 +62,7 @@ $branding = is_array($branding ?? null) ? $branding : [];
 
       <?php if ($currentTab === 'overview'): ?>
         <section class="admin-card glass">
-          <h2>MVP Overview</h2>
+          <h2><?= h($activeSiteLabel) ?> overview</h2>
           <div class="admin-grid-3">
             <div class="glass" style="padding:12px;border-radius:12px;">
               <p class="muted">Decks</p>
@@ -65,7 +77,7 @@ $branding = is_array($branding ?? null) ? $branding : [];
               <strong style="font-size:1.6rem;"><?= $countLeads ?></strong>
             </div>
           </div>
-          <p class="muted" style="margin-top:12px;">SSO invites: <?= $countInvites ?> | Tenant: main | Route scope: /da/deck/{slug}, /en/deck/{slug}</p>
+          <p class="muted" style="margin-top:12px;">SSO invites: <?= $countInvites ?> | Site: <?= h($activeSiteKey) ?> | Route scope: /da/deck/{slug}, /en/deck/{slug}</p>
         </section>
       <?php endif; ?>
 
