@@ -12,6 +12,6 @@ Each environment requires secrets `SIMPLY_SSH_PRIVATE_KEY`, `SIMPLY_SSH_KNOWN_HO
 
 ## Operations
 
-CI validates all PHP/JS and builds three artifacts. A manual `Deploy Simply` run performs an additive migration, uploads one artifact and atomically changes only that site's `current` symlink. Rollback swaps `current` to `previous`; schema migrations are deliberately not reversed.
+CI validates all PHP/JS and builds three artifacts. A manual `Deploy Simply` run validates its target, parses the remote database environment as allowlisted data, performs an additive migration, uploads one artifact and atomically changes only that site's `current` symlink. A failed deploy smoke restores the previous code release. Manual rollback swaps `current` to `previous`; schema migrations are deliberately not reversed, so migrations must remain backward compatible.
 
 The local comparison portal dispatches the same workflow through the authenticated local `gh` CLI. Simply MCP remains an operations tool for deploy-info, DNS, logs and inventory; it does not deliver code.
