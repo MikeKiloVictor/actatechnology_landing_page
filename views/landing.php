@@ -97,6 +97,9 @@ $labels = [
   <div class="site-shell">
     <header class="topbar glass">
       <div class="brand">
+<?php if (($tenantKey ?? '') === 'actaconsult' && empty($brand['logo_url']) && str_starts_with($appName, 'Acta') && strlen($appName) > 4): ?>
+        <p class="brand-name acta-wordmark"><span class="acta-dot" aria-hidden="true"></span><span class="acta-core">Acta</span><span class="acta-suffix"><?= h(substr($appName, 4)) ?></span></p>
+<?php else: ?>
         <div class="brand-mark">
           <?php if (!empty($brand['logo_url'])): ?>
             <img src="<?= h((string) $brand['logo_url']) ?>" alt="Logo">
@@ -108,6 +111,7 @@ $labels = [
           <p class="brand-name"><?= h($appName) ?></p>
           <p class="brand-sub"><?= h($canonicalHost) ?></p>
         </div>
+<?php endif; ?>
       </div>
       <nav class="menu" aria-label="Header">
         <?php foreach ($menuItems as $item): ?>
