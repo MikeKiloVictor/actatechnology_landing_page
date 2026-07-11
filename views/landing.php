@@ -24,6 +24,9 @@ $canonicalHost = (string) ($siteConfig['canonical_host'] ?? 'actatechnology.dk')
 $canonicalPath = $isEn ? '/en' : '/';
 $styleVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/style.css') ?: time());
 $scriptVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/landing.js') ?: time());
+$fontStylesheetUrl = ($tenantKey ?? '') === 'actaconsult'
+    ? 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+    : 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap';
 
 $labels = [
     'admin' => $isEn ? 'Admin' : 'Administration',
@@ -56,6 +59,9 @@ $labels = [
     'rejectTracking' => $isEn ? 'Reject' : 'Afvis',
     'footer' => $isEn ? 'ActaTechnology. Built for multi-tenant web platforms.' : 'ActaTechnology. Bygget til multi-tenant webplatforme.',
 ];
+if (($tenantKey ?? '') === 'actaconsult') {
+    $labels['footer'] = $appName;
+}
 ?>
 <!doctype html>
 <html lang="<?= $isEn ? 'en' : 'da' ?>" data-site="<?= h((string) ($tenantKey ?? '')) ?>">
@@ -73,7 +79,7 @@ $labels = [
   <meta property="og:url" content="https://<?= h($canonicalHost . $canonicalPath) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="<?= $fontStylesheetUrl ?>" rel="stylesheet">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/style.css?v=<?= h($styleVersion) ?>">
   <link rel="stylesheet" href="/assets/theme.css">
@@ -97,6 +103,9 @@ $labels = [
   <div class="site-shell">
     <header class="topbar glass">
       <div class="brand">
+<?php if (($tenantKey ?? '') === 'actaconsult' && empty($brand['logo_url']) && str_starts_with($appName, 'Acta') && strlen($appName) > 4): ?>
+        <p class="brand-name acta-wordmark"><span class="acta-dot" aria-hidden="true"></span><span class="acta-core">Acta</span><span class="acta-suffix"><?= h(substr($appName, 4)) ?></span></p>
+<?php else: ?>
         <div class="brand-mark">
           <?php if (!empty($brand['logo_url'])): ?>
             <img src="<?= h((string) $brand['logo_url']) ?>" alt="Logo">
@@ -108,6 +117,7 @@ $labels = [
           <p class="brand-name"><?= h($appName) ?></p>
           <p class="brand-sub"><?= h($canonicalHost) ?></p>
         </div>
+<?php endif; ?>
       </div>
       <nav class="menu" aria-label="Header">
         <?php foreach ($menuItems as $item): ?>
