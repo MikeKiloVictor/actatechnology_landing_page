@@ -1,4 +1,5 @@
 name: Deploy Simply
+run-name: "acta-deploy:${{ inputs.site }}:${{ inputs.environment }}:${{ inputs.operation }}"
 
 on:
   workflow_dispatch:
@@ -82,4 +83,6 @@ jobs:
       - name: Smoke test
         env:
           SMOKE_URL: ${{ vars.SIMPLY_SMOKE_URL }}
-        run: curl --fail --show-error --silent --retry 5 --retry-delay 3 "$SMOKE_URL/" >/dev/null
+        run: |
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --retry-delay 3 "$SMOKE_URL/" --output /tmp/acta-smoke.html
+          grep --fixed-strings --quiet 'data-site="${{ inputs.site }}"' /tmp/acta-smoke.html
