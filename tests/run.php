@@ -46,6 +46,18 @@ assertSameValue('actagroup', $registry->resolve('localhost:8083', 'actagroup'), 
 assertSameValue(null, $registry->resolve('actaconsult.dk', 'actagroup'), 'fixed artifacts must reject another production host');
 assertSameValue(null, $registry->resolve('localhost', 'unknown'), 'unknown artifact site key must be rejected');
 
+$familyThemePath = dirname(__DIR__) . '/sites/acta-family.css';
+foreach (['actagroup', 'actaconsult', 'actatechnology'] as $site) {
+    $theme = combineThemeCss($familyThemePath, dirname(__DIR__) . '/sites/' . $site . '/theme.css');
+    assertTrue(str_contains($theme, 'Shared Acta family theme'), $site . ' theme should contain family layer');
+    assertTrue(str_contains($theme, 'html[data-site="' . $site . '"]'), $site . ' theme should contain its tenant layer');
+    foreach (['actagroup', 'actaconsult', 'actatechnology'] as $other) {
+        if ($other !== $site) {
+            assertTrue(!str_contains($theme, 'html[data-site="' . $other . '"]'), $site . ' theme must exclude ' . $other);
+        }
+    }
+}
+
 $params = routeMatches('/api/public/v1/deck/my-story', '/api/public/v1/deck/{slug}');
 assertTrue(is_array($params), 'route should match deck pattern');
 assertSameValue('my-story', $params['slug'] ?? null, 'route parameter should be captured');

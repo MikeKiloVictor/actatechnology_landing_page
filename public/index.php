@@ -25,14 +25,15 @@ if ($tenantKey === '') {
 }
 
 if ($method === 'GET' && $path === '/assets/theme.css') {
+    $familyPath = dirname(__DIR__) . '/sites/acta-family.css';
     $themePath = dirname(__DIR__) . '/sites/' . $tenantKey . '/theme.css';
-    if (!is_file($themePath)) {
+    if (!is_file($familyPath) || !is_file($themePath)) {
         http_response_code(404);
         exit;
     }
     header('Content-Type: text/css; charset=utf-8');
     header('Cache-Control: public, max-age=300');
-    readfile($themePath);
+    echo combineThemeCss($familyPath, $themePath);
     exit;
 }
 

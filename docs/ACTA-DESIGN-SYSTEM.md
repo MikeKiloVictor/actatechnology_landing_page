@@ -2,8 +2,8 @@
 
 Decision-complete design specification for the Acta brand family on the shared PHP landing
 platform (ActaGroup · ActaConsult · ActaTechnology). This document is the single source of
-truth for visual design across the three tenants. **Implemented in this slice: ActaConsult
-only.** Group and Technology are specified here but intentionally not implemented.
+truth for visual design across the three tenants. The family foundation and all three brand
+variants are implemented in the active after-platform; immutable before-worktrees remain unchanged.
 
 Reference aesthetic: the original ActaConsult React site (dark, calm, typographically strong,
 large airy sections, few cards, discreet motion, no decorative gradient orbs, no glassmorphism
@@ -15,10 +15,10 @@ noise).
 
 | Decision | Value |
 |---|---|
-| Delivery mechanism | One `sites/<tenant>/theme.css` per tenant, copied into each artifact by `scripts/build-artifacts.sh` and served at `/assets/theme.css`. |
+| Delivery mechanism | `sites/acta-family.css` plus exactly one `sites/<tenant>/theme.css` are concatenated by `scripts/build-artifacts.sh` into the artifact's `/assets/theme.css`. |
 | Namespacing | Every tenant-specific runtime selector is scoped under `html[data-site="<tenant>"]`. Artifact-local legacy `:root` tokens and the uniquely named keyframe are the only exceptions. Scoped selectors win over the CMS-driven inline `<style>` in `views/landing.php` (`:root` / `body`) by specificity. |
-| Shared markup | `views/landing.php` may only change behind tenant-aware values that provably leave other tenants' output byte-identical (wordmark, font URL and footer label - see section 4). |
-| Fonts | The shared template selects Inter only for migrated tenants and otherwise preserves the existing Manrope/Space Grotesk link. CSP already allows `fonts.googleapis.com` (style-src) and `fonts.gstatic.com` (font-src). No CSS `@import` is used. |
+| Shared markup | `views/landing.php` activates wordmark, Inter and tenant-safe footer labels only for the three allowlisted Acta tenants. Unknown/future tenants retain the legacy fallback. |
+| Fonts | The shared template selects Inter for all three Acta tenants and otherwise preserves the existing Manrope/Space Grotesk link. CSP already allows `fonts.googleapis.com` (style-src) and `fonts.gstatic.com` (font-src). No CSS `@import` is used. |
 | CMS compatibility | CMS branding (hero copy, menus, services, logo upload, lead flow) is untouched. If an admin uploads a `logo_url`, it replaces the CSS wordmark (see §4). CMS `accent_color` / `background_gradient` are intentionally overridden by the theme for migrated tenants — the theme is authoritative for the Acta look. |
 | Tenant isolation | Unchanged: host validation (`SiteRegistry::resolve`), artifact isolation (`verify-artifact.sh`), per-artifact `SITE_KEY`. |
 | Legacy tokens | The old `--site-accent` / `--site-surface` / `--site-ink` / `--site-heading-font` tokens in `sites/*/theme.css` are referenced nowhere in views/JS/shared CSS (verified 2026-07-11). They are kept, updated to the new values, for backwards safety. |
@@ -122,31 +122,28 @@ degrades gracefully to the plain-text brand block.
 
 ## 4. Shared-markup change budget (what this slice touched)
 
-The shared template has three Consult-aware values: the header wordmark, the Google Fonts URL and
-the footer label. All are guarded by `$tenantKey === 'actaconsult'`. For `actagroup` and
-`actatechnology` the emitted HTML must remain byte-identical to commit `9ab9a20`. No other shared
-file changed; `public/assets/style.css`, `sites/actagroup/theme.css` and
-`sites/actatechnology/theme.css` are untouched.
+The shared template has three Acta-aware values: the header wordmark, the Google Fonts URL and the
+footer label. All are guarded by the fixed `actagroup`, `actaconsult`, `actatechnology` allowlist.
+CMS logos still win. Public shared CSS/JavaScript remain unchanged; visual differences live in the
+family layer and the one tenant variant packaged into each artifact.
 
 ## 5. Brand variants
 
-### 5.1 ActaConsult — IMPLEMENTED (this slice)
+### 5.1 ActaConsult — IMPLEMENTED
 
 | Token | Value | Use |
 |---|---|---|
-| `--c-brand` | `#A7C4D4` (muted ice blue) | Dot, suffix, links, primary CTA, focus rings, category accents. |
-| `--c-brand-hi` | `#CAD7DF` (blue-silver) | Hover states of brand-colored elements. |
+| `--acta-brand` | `#A7C4D4` (muted ice blue) | Dot, suffix, links, primary CTA, focus rings, category accents. |
+| `--acta-brand-hi` | `#CAD7DF` (blue-silver) | Hover states of brand-colored elements. |
 | `--acta-surface-deep` | `#1B2329` (deep blue-grey) | Cards, inputs, deck cards, icon buttons. |
 
 Rules of use:
 - **Blue is an accent, never a dominant background.** The page stays anthracite; blue appears
   only on the dot/suffix, CTAs, links, focus rings and the ≤ 6% hero wash.
-- Hero: single column (the shared "Hero story" aside is hidden for Consult — its copy is
-  hard-coded ActaTechnology platform marketing and off-brand for an advisory site; hiding is a
-  Consult-only visual decision, other tenants keep it).
+- Hero: single column. The Technology-specific story aside is not rendered for Consult.
 - Cards: only the CMS-driven services/decks/blog cards. No added decorative cards.
 
-### 5.2 ActaGroup — SPECIFIED, NOT IMPLEMENTED
+### 5.2 ActaGroup — IMPLEMENTED
 
 | Token | Value |
 |---|---|
@@ -155,10 +152,10 @@ Rules of use:
 | Deep surface | `#1D2126` (neutral anthracite step, no hue cast). |
 
 Monochrome anthracite/silver identity: primary CTA is silver with dark ink; focus rings silver.
-Everything else follows §2. Implementation = copy the Consult theme structure, swap the three
-tokens above and the wordmark suffix, namespace under `html[data-site="actagroup"]`.
+Everything else follows section 2 through the shared family layer. The Technology-specific hero
+aside is not rendered for Group.
 
-### 5.3 ActaTechnology — SPECIFIED, NOT IMPLEMENTED
+### 5.3 ActaTechnology — IMPLEMENTED
 
 | Token | Value |
 |---|---|
@@ -168,17 +165,19 @@ tokens above and the wordmark suffix, namespace under `html[data-site="actagroup
 
 Rules of use: orange is for **CTAs, focus states and active technical elements** (active nav
 item, running/progress indicators, deck progress bar) — never a full-bleed background, never
-large tinted panels. Body/headings stay silver on anthracite per §2. Namespace under
-`html[data-site="actatechnology"]`.
+large tinted panels. Body/headings stay silver on anthracite per section 2. Technology retains the
+relevant two-column platform-story aside on desktop and stacks it below the hero on narrower screens.
 
 ## 6. QA gates for any future brand migration
 
 1. `bash scripts/ci.sh` green (PHP lint + tests + JS syntax).
 2. `bash scripts/build-artifacts.sh <out>` + `bash scripts/verify-artifact.sh <site> <out>/<site>` for all three sites.
-3. Non-migrated tenants: rendered HTML byte-identical to the previous commit; their
-   `theme.css` and `public/assets/style.css` diff-empty.
+3. Each artifact contains the family layer and exactly one matching tenant selector; no other
+   tenant selector is present.
 4. Unknown / cross-brand `Host:` returns 404 before any DB access (already covered by
    `tests/run.php` SiteRegistry assertions + artifact smoke test).
 5. Visual pass at 1440×900 and 390×844, DA + EN.
 6. Keyboard walk (tab order, visible focus), `prefers-reduced-motion` pass, no horizontal
    overflow at 390px.
+7. Immutable before-worktrees remain pinned to their recorded commits and are never rebuilt from
+   the active after-platform.

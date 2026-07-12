@@ -228,3 +228,17 @@ function routeMatches(string $path, string $pattern): ?array
 
     return $params;
 }
+
+function combineThemeCss(string $familyPath, string $tenantPath): string
+{
+    $chunks = [];
+    foreach ([$familyPath, $tenantPath] as $path) {
+        $contents = is_file($path) ? file_get_contents($path) : false;
+        if ($contents === false) {
+            throw new RuntimeException('Theme stylesheet is unavailable.');
+        }
+        $chunks[] = rtrim($contents) . "\n";
+    }
+
+    return implode("\n", $chunks);
+}

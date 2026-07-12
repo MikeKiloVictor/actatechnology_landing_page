@@ -24,7 +24,8 @@ $canonicalHost = (string) ($siteConfig['canonical_host'] ?? 'actatechnology.dk')
 $canonicalPath = $isEn ? '/en' : '/';
 $styleVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/style.css') ?: time());
 $scriptVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/landing.js') ?: time());
-$fontStylesheetUrl = ($tenantKey ?? '') === 'actaconsult'
+$usesActaDesign = in_array(($tenantKey ?? ''), ['actagroup', 'actaconsult', 'actatechnology'], true);
+$fontStylesheetUrl = $usesActaDesign
     ? 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
     : 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap';
 
@@ -59,7 +60,7 @@ $labels = [
     'rejectTracking' => $isEn ? 'Reject' : 'Afvis',
     'footer' => $isEn ? 'ActaTechnology. Built for multi-tenant web platforms.' : 'ActaTechnology. Bygget til multi-tenant webplatforme.',
 ];
-if (($tenantKey ?? '') === 'actaconsult') {
+if ($usesActaDesign) {
     $labels['footer'] = $appName;
 }
 ?>
@@ -103,7 +104,7 @@ if (($tenantKey ?? '') === 'actaconsult') {
   <div class="site-shell">
     <header class="topbar glass">
       <div class="brand">
-<?php if (($tenantKey ?? '') === 'actaconsult' && empty($brand['logo_url']) && str_starts_with($appName, 'Acta') && strlen($appName) > 4): ?>
+<?php if ($usesActaDesign && empty($brand['logo_url']) && str_starts_with($appName, 'Acta') && strlen($appName) > 4): ?>
         <p class="brand-name acta-wordmark"><span class="acta-dot" aria-hidden="true"></span><span class="acta-core">Acta</span><span class="acta-suffix"><?= h(substr($appName, 4)) ?></span></p>
 <?php else: ?>
         <div class="brand-mark">
@@ -138,11 +139,13 @@ if (($tenantKey ?? '') === 'actaconsult') {
             <a class="button button-secondary" href="<?= h($secondaryCtaUrl) ?>"><?= h($secondaryCtaLabel) ?></a>
           </div>
         </div>
+<?php if (($tenantKey ?? '') === 'actatechnology'): ?>
         <aside class="hero-story glass">
           <h3><?= h($labels['storyHeadline']) ?></h3>
           <p><?= h($labels['storyText']) ?></p>
           <p class="muted">LAMP-ready | Multi-tenant | CMS + Deck Player</p>
         </aside>
+<?php endif; ?>
       </div>
     </section>
 

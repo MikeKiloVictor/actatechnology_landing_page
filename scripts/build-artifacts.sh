@@ -13,7 +13,7 @@ for site in "${SITES[@]}"; do
   mkdir -p "${artifact}/assets" "${artifact}/_app/storage"
   cp -R "${ROOT_DIR}/src" "${ROOT_DIR}/views" "${ROOT_DIR}/config" "${ROOT_DIR}/public" "${artifact}/_app/"
   cp -R "${ROOT_DIR}/public/assets/." "${artifact}/assets/"
-  cp "${ROOT_DIR}/sites/${site}/theme.css" "${artifact}/assets/theme.css"
+  cat "${ROOT_DIR}/sites/acta-family.css" "${ROOT_DIR}/sites/${site}/theme.css" > "${artifact}/assets/theme.css"
   printf '%s\n' "<?php define('APP_ROOT', __DIR__ . '/_app'); putenv('SITE_KEY=${site}'); require APP_ROOT . '/public/index.php';" > "${artifact}/index.php"
   touch "${artifact}/_app/storage/.gitkeep"
   find "${artifact}" -type f -exec chmod 0644 {} +
