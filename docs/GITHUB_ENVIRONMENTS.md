@@ -1,16 +1,16 @@
 # GitHub Environments - Acta deployment gate
 
-Status: Configuration required
-Last live audit: 2026-07-11
+Status: Configuration in progress
+Last live audit: 2026-07-12
 Repository: `MikeKiloVictor/actatechnology_landing_page`
 
-The live audit found zero GitHub Environments, repository secrets and repository variables. The workflow is implemented, but staging and production deployment remain operationally blocked.
+The live audit found one GitHub Environment, `actagroup-staging`, created without secrets or variables. The workflow is implemented, but staging deployment remains operationally blocked until its dedicated Simply credentials and smoke URL are configured. Production remains untouched.
 
 ## Required matrix
 
 | Environment | Reviewer gate | Self-review | Branch policy | Status |
 | --- | --- | --- | --- | --- |
-| `actagroup-staging` | Optional | N/A | Feature branch allowed for first dry-run | Missing |
+| `actagroup-staging` | Optional | N/A | Feature branch allowed for first dry-run | Created; credentials missing |
 | `actagroup-production` | Required | Disabled | Protected production branch only | Missing |
 | `actaconsult-staging` | Optional | N/A | Feature branch allowed for first dry-run | Missing |
 | `actaconsult-production` | Required | Disabled | Protected production branch only | Missing |
