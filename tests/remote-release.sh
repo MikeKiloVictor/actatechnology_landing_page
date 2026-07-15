@@ -8,6 +8,7 @@ trap 'rm -rf "${FIXTURE_ROOT}"' EXIT
 fake_bin="${FIXTURE_ROOT}/bin"
 deploy_root="${FIXTURE_ROOT}/deploy"
 missing_env_root="${FIXTURE_ROOT}/missing-env"
+first_deploy_root="${FIXTURE_ROOT}/first-deploy"
 release_id="abc1234"
 
 mkdir -p \
@@ -16,13 +17,18 @@ mkdir -p \
   "${deploy_root}/shared" \
   "${deploy_root}/platform-db/scripts" \
   "${missing_env_root}/releases/${release_id}/_app" \
-  "${missing_env_root}/platform-db/scripts"
+  "${missing_env_root}/platform-db/scripts" \
+  "${first_deploy_root}/releases/${release_id}/_app" \
+  "${first_deploy_root}/shared" \
+  "${first_deploy_root}/platform-db/scripts"
 
 printf '#!/usr/bin/env bash\nexit 0\n' > "${fake_bin}/php"
 chmod +x "${fake_bin}/php"
 printf 'DB_HOST=example.invalid\n' > "${deploy_root}/shared/.env"
 printf '<?php\n' > "${deploy_root}/platform-db/scripts/remote-migrate.php"
 printf '<?php\n' > "${missing_env_root}/platform-db/scripts/remote-migrate.php"
+printf 'DB_HOST=example.invalid\n' > "${first_deploy_root}/shared/.env"
+printf '<?php\n' > "${first_deploy_root}/platform-db/scripts/remote-migrate.php"
 
 PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" deploy "${deploy_root}" "${release_id}"
 
@@ -37,5 +43,11 @@ if PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" deplo
   exit 1
 fi
 test ! -L "${missing_env_root}/current"
+
+PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" deploy "${first_deploy_root}" "${release_id}"
+test -L "${first_deploy_root}/current"
+test ! -L "${first_deploy_root}/previous"
+PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" rollback "${first_deploy_root}" "${release_id}"
+test ! -e "${first_deploy_root}/current"
 
 echo "Remote release tests passed"

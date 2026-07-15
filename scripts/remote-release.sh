@@ -10,10 +10,16 @@ release_id="${3:?release id required}"
 
 cd "${deploy_root}"
 if [[ "${operation}" == "rollback" ]]; then
-  test -L previous
+  current_target="$(readlink current 2>/dev/null || true)"
+  if [[ ! -L previous ]]; then
+    if [[ "${current_target}" == "releases/${release_id}" ]]; then
+      rm -f -- current
+      exit 0
+    fi
+    exit 1
+  fi
   rollback_target="$(readlink previous)"
   test -d "${rollback_target}"
-  current_target="$(readlink current 2>/dev/null || true)"
   ln -sfn "${rollback_target}" current.next
   mv -Tf current.next current
   if [[ -n "${current_target}" ]]; then
