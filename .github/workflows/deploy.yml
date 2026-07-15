@@ -89,6 +89,15 @@ jobs:
         run: |
           ssh "$SSH_USER@$SSH_HOST" bash -s -- "$DEPLOY_ROOT" < scripts/remote-preflight.sh
 
+      - name: Probe HTTPS from hosting server
+        if: inputs.operation == 'preflight'
+        env:
+          SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
+          SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
+          SMOKE_URL: ${{ vars.SIMPLY_SMOKE_URL }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$SMOKE_URL" < scripts/remote-http-probe.sh
+
       - name: Upload release and migration bundle
         if: inputs.operation == 'deploy'
         env:
