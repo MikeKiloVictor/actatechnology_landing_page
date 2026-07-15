@@ -23,10 +23,12 @@ if [[ "${operation}" == "rollback" ]]; then
 fi
 
 test -d "releases/${release_id}"
-if [[ -f shared/.env ]]; then
-  test -f platform-db/scripts/remote-migrate.php
-  php platform-db/scripts/remote-migrate.php shared/.env platform-db
-fi
+test -d "releases/${release_id}/_app"
+test -f shared/.env
+ln -sfn ../../../shared/.env "releases/${release_id}/_app/.env"
+test -f "releases/${release_id}/_app/.env"
+test -f platform-db/scripts/remote-migrate.php
+php platform-db/scripts/remote-migrate.php shared/.env platform-db
 
 current_target="$(readlink current 2>/dev/null || true)"
 ln -sfn "releases/${release_id}" current.next
