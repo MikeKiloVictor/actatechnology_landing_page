@@ -25,11 +25,13 @@ bash -n "${ROOT_DIR}/tests/migrate.sh"
 bash -n "${ROOT_DIR}/tests/remote-http-probe.sh"
 bash -n "${ROOT_DIR}/tests/remote-release.sh"
 bash -n "${ROOT_DIR}/tests/remote-smoke.sh"
+bash -n "${ROOT_DIR}/tests/webroot-config.sh"
 
 echo "[ci] Shell tests"
 bash "${ROOT_DIR}/tests/migrate.sh"
 bash "${ROOT_DIR}/tests/remote-http-probe.sh"
 bash "${ROOT_DIR}/tests/remote-release.sh"
 bash "${ROOT_DIR}/tests/remote-smoke.sh"
+bash "${ROOT_DIR}/tests/webroot-config.sh"
 
 echo "[ci] done"

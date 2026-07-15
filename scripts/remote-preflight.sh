@@ -26,7 +26,7 @@ test -w "${deploy_root}" || fail deploy_root_not_writable
 test -f "${deploy_root}/shared/.env" || fail shared_env_missing
 test -r "${deploy_root}/shared/.env" || fail shared_env_not_readable
 
-for command in php tar find ln mv readlink; do
+for command in chmod cmp cp php tar find ln mv readlink; do
   command -v "${command}" >/dev/null || fail "command_${command}_missing"
 done
 

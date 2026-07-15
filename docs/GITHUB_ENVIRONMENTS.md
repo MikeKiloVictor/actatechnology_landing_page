@@ -29,7 +29,7 @@ Do not share an environment or deploy root between sites. Staging and production
 
 ## Variable per environment
 
-- `SIMPLY_SMOKE_URL` - HTTPS URL for the exact site/environment. The returned page must contain that site's fixed `data-site` marker.
+- `SIMPLY_SMOKE_URL` - public HTTPS root URL for the exact site/environment, without an internal `/current` path. The returned page must contain that site's fixed `data-site` marker.
 
 ## Production protection
 
