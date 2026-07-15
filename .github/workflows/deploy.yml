@@ -124,10 +124,11 @@ jobs:
         id: smoke
         continue-on-error: true
         env:
+          SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
+          SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
           SMOKE_URL: ${{ vars.SIMPLY_SMOKE_URL }}
         run: |
-          curl --fail --show-error --silent --retry 5 --retry-all-errors --retry-delay 3 "$SMOKE_URL/" --output /tmp/acta-smoke.html
-          grep --fixed-strings --quiet 'data-site="${{ inputs.site }}"' /tmp/acta-smoke.html
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$SMOKE_URL" "${{ inputs.site }}" < scripts/remote-smoke.sh
 
       - name: Restore previous code after failed deploy smoke
         if: steps.smoke.outcome == 'failure' && inputs.operation == 'deploy'
