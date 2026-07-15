@@ -16,11 +16,14 @@ node --check "${ROOT_DIR}/public/assets/landing.js"
 node --check "${ROOT_DIR}/public/assets/deck.js"
 
 echo "[ci] Shell syntax"
+bash -n "${ROOT_DIR}/scripts/migrate.sh"
 bash -n "${ROOT_DIR}/scripts/remote-preflight.sh"
 bash -n "${ROOT_DIR}/scripts/remote-release.sh"
+bash -n "${ROOT_DIR}/tests/migrate.sh"
 bash -n "${ROOT_DIR}/tests/remote-release.sh"
 
 echo "[ci] Shell tests"
+bash "${ROOT_DIR}/tests/migrate.sh"
 bash "${ROOT_DIR}/tests/remote-release.sh"
 
 echo "[ci] done"
