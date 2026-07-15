@@ -8,6 +8,7 @@ $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $host = $_SERVER['HTTP_HOST'] ?? 'actatechnology.dk';
 $tenantKey = getTenantKeyFromHost($host);
+$siteRegistry = new SiteRegistry();
 $clientIp = clientIpAddress();
 $isHttpsRequest = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (($_SERVER['SERVER_PORT'] ?? '') === '443')
@@ -15,6 +16,26 @@ $isHttpsRequest = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 
 Security::applyHttpHeaders();
 Security::setNoStoreForAdmin($path);
+
+if ($tenantKey === '') {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Unknown site host.';
+    exit;
+}
+
+if ($method === 'GET' && $path === '/assets/theme.css') {
+    $familyPath = dirname(__DIR__) . '/sites/acta-family.css';
+    $themePath = dirname(__DIR__) . '/sites/' . $tenantKey . '/theme.css';
+    if (!is_file($familyPath) || !is_file($themePath)) {
+        http_response_code(404);
+        exit;
+    }
+    header('Content-Type: text/css; charset=utf-8');
+    header('Cache-Control: public, max-age=300');
+    echo combineThemeCss($familyPath, $themePath);
+    exit;
+}
 
 $repo = new ContentRepository();
 $auth = new AuthService($repo);
@@ -34,6 +55,7 @@ function adminRedirect(string $tab, string $status = 'ok', string $message = '')
 {
     $query = http_build_query([
         'tab' => $tab,
+        'site' => $_SESSION['admin_site_key'] ?? null,
         'status' => $status,
         'message' => $message,
     ]);
@@ -213,7 +235,8 @@ try {
             redirect('/admin/login?error=' . urlencode('Access denied. Invite required.'));
         }
 
-        redirect('/admin?status=ok&message=' . urlencode('Signed in with Google.'));
+        $_SESSION['admin_site_key'] = $tenantKey;
+        redirect('/admin?site=' . rawurlencode($tenantKey) . '&status=ok&message=' . urlencode('Signed in with Google.'));
     }
 
     if ($method === 'GET' && $path === '/admin/logout') {
@@ -235,7 +258,8 @@ try {
             $password = (string) ($_POST['password'] ?? '');
 
             if ($auth->loginLocal($email, $password)) {
-                redirect('/admin?status=ok&message=' . urlencode('Logged in via fallback account.'));
+                $_SESSION['admin_site_key'] = $tenantKey;
+                redirect('/admin?site=' . rawurlencode($tenantKey) . '&status=ok&message=' . urlencode('Logged in via fallback account.'));
             }
 
             redirect('/admin/login?error=' . urlencode('Invalid fallback login.'));
@@ -253,10 +277,11 @@ try {
     }
 
     if ($method === 'GET' && $path === '/admin/export') {
-        $auth->requireAdmin();
+        $adminSiteKey = (string) ($_SESSION['admin_site_key'] ?? $tenantKey);
+        $auth->requireSiteAccess($adminSiteKey);
 
-        $export = $repo->exportData($tenantKey);
-        $filename = 'actatechnology_backup_' . date('Y-m-d_His') . '.json';
+        $export = $repo->exportData($adminSiteKey);
+        $filename = $adminSiteKey . '_backup_' . date('Y-m-d_His') . '.json';
 
         header('Content-Type: application/json; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -269,7 +294,8 @@ try {
             adminRedirect('import_export', 'error', 'Too many imports this hour. Please wait.');
         }
 
-        $user = $auth->requireAdmin();
+        $adminSiteKey = (string) ($_SESSION['admin_site_key'] ?? $tenantKey);
+        $user = $auth->requireSiteAccess($adminSiteKey);
         if (!verifyCsrf($_POST['_csrf'] ?? null)) {
             adminRedirect('import_export', 'error', 'Invalid CSRF token.');
         }
@@ -290,7 +316,8 @@ try {
         }
 
         $mode = ($_POST['mode'] ?? 'append') === 'replace' ? 'replace' : 'append';
-        $repo->importData($tenantKey, $payload, $mode);
+        $repo->importData($adminSiteKey, $payload, $mode);
+        $repo->logAuditEvent((int) $user['id'], $adminSiteKey, 'import', 'site', $adminSiteKey);
         $repo->logAuthEvent('admin_import', 'success', (string) ($user['email'] ?? ''), $_SERVER['REMOTE_ADDR'] ?? null, $_SERVER['HTTP_USER_AGENT'] ?? null, 'mode=' . $mode);
 
         adminRedirect('import_export', 'ok', 'Import complete.');
@@ -301,7 +328,8 @@ try {
             adminRedirect('overview', 'error', 'Too many admin actions. Please wait.');
         }
 
-        $user = $auth->requireAdmin();
+        $adminSiteKey = (string) ($_SESSION['admin_site_key'] ?? $tenantKey);
+        $user = $auth->requireSiteAccess($adminSiteKey);
         if (!verifyCsrf($_POST['_csrf'] ?? null)) {
             adminRedirect('overview', 'error', 'Invalid CSRF token.');
         }
@@ -310,50 +338,64 @@ try {
 
         switch ($action) {
             case 'save_branding':
-                $repo->upsertBranding($tenantKey, $_POST);
+                $repo->upsertBranding($adminSiteKey, $_POST);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'branding', $adminSiteKey);
                 adminRedirect('branding', 'ok', 'Branding saved.');
 
             case 'add_menu_item':
-                $repo->addMenuItem($tenantKey, $_POST);
+                $repo->addMenuItem($adminSiteKey, $_POST);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'menu');
                 adminRedirect('menus', 'ok', 'Menu item added.');
 
             case 'delete_menu_item':
-                $repo->deleteMenuItem((int) ($_POST['menu_item_id'] ?? 0));
+                $repo->deleteMenuItem($adminSiteKey, (int) ($_POST['menu_item_id'] ?? 0));
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'menu', (string) ($_POST['menu_item_id'] ?? ''));
                 adminRedirect('menus', 'ok', 'Menu item deleted.');
 
             case 'add_service':
-                $repo->addService($tenantKey, $_POST);
+                $repo->addService($adminSiteKey, $_POST);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'service');
                 adminRedirect('services', 'ok', 'Service saved.');
 
             case 'delete_service':
-                $repo->deleteService((int) ($_POST['service_id'] ?? 0));
+                $repo->deleteService($adminSiteKey, (int) ($_POST['service_id'] ?? 0));
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'service', (string) ($_POST['service_id'] ?? ''));
                 adminRedirect('services', 'ok', 'Service deleted.');
 
             case 'create_deck':
-                $repo->createDeck($tenantKey, $_POST);
+                $deckId = $repo->createDeck($adminSiteKey, $_POST);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'deck', (string) $deckId);
                 adminRedirect('decks', 'ok', 'Deck created.');
 
             case 'update_deck':
-                $repo->updateDeck((int) ($_POST['deck_id'] ?? 0), $_POST);
+                $repo->updateDeck($adminSiteKey, (int) ($_POST['deck_id'] ?? 0), $_POST);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'deck', (string) ($_POST['deck_id'] ?? ''));
                 adminRedirect('decks', 'ok', 'Deck updated.');
 
             case 'delete_deck':
-                $repo->deleteDeck((int) ($_POST['deck_id'] ?? 0));
+                $repo->deleteDeck($adminSiteKey, (int) ($_POST['deck_id'] ?? 0));
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'deck', (string) ($_POST['deck_id'] ?? ''));
                 adminRedirect('decks', 'ok', 'Deck deleted.');
 
             case 'create_slide':
-                $repo->createSlide((int) ($_POST['deck_id'] ?? 0), $_POST);
+                $slideId = $repo->createSlide($adminSiteKey, (int) ($_POST['deck_id'] ?? 0), $_POST);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'slide', (string) $slideId);
                 adminRedirect('decks', 'ok', 'Slide created.');
 
             case 'update_slide':
-                $repo->updateSlide((int) ($_POST['slide_id'] ?? 0), $_POST);
+                $repo->updateSlide($adminSiteKey, (int) ($_POST['slide_id'] ?? 0), $_POST);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'slide', (string) ($_POST['slide_id'] ?? ''));
                 adminRedirect('decks', 'ok', 'Slide updated.');
 
             case 'delete_slide':
-                $repo->deleteSlide((int) ($_POST['slide_id'] ?? 0));
+                $repo->deleteSlide($adminSiteKey, (int) ($_POST['slide_id'] ?? 0));
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'slide', (string) ($_POST['slide_id'] ?? ''));
                 adminRedirect('decks', 'ok', 'Slide deleted.');
 
             case 'save_invite':
+                if (($user['role'] ?? '') !== 'super_admin') {
+                    adminRedirect('identity', 'error', 'Only platform administrators can manage invites.');
+                }
                 $repo->upsertInvite([
                     'email' => $_POST['email'] ?? '',
                     'role' => $_POST['role'] ?? 'editor',
@@ -361,16 +403,22 @@ try {
                     'status' => $_POST['status'] ?? 'pending',
                     'expires_at' => $_POST['expires_at'] ?? null,
                     'invited_by_user_id' => (int) ($user['id'] ?? 0),
+                    'tenant_key' => $adminSiteKey,
                 ]);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'invite');
                 adminRedirect('identity', 'ok', 'Invite saved.');
 
             case 'save_org_profile':
+                if (($user['role'] ?? '') !== 'super_admin') {
+                    adminRedirect('identity', 'error', 'Only platform administrators can manage organisations.');
+                }
                 $repo->upsertOrgProfile([
                     'code' => $_POST['code'] ?? '',
                     'label' => $_POST['label'] ?? '',
                     'allowed_domain' => $_POST['allowed_domain'] ?? null,
                     'is_active' => !empty($_POST['is_active']),
                 ]);
+                $repo->logAuditEvent((int) $user['id'], $adminSiteKey, $action, 'org_profile');
                 adminRedirect('identity', 'ok', 'Org profile saved.');
 
             default:
@@ -380,6 +428,10 @@ try {
 
     if ($method === 'GET' && $path === '/admin') {
         $user = $auth->requireAdmin();
+        $requestedSite = (string) ($_GET['site'] ?? $_SESSION['admin_site_key'] ?? $tenantKey);
+        $adminSiteKey = $siteRegistry->has($requestedSite) ? $requestedSite : $tenantKey;
+        $auth->requireSiteAccess($adminSiteKey);
+        $_SESSION['admin_site_key'] = $adminSiteKey;
         $tab = (string) ($_GET['tab'] ?? 'overview');
 
         renderView('admin/dashboard', [
@@ -388,12 +440,14 @@ try {
             'user' => $user,
             'status' => (string) ($_GET['status'] ?? ''),
             'message' => (string) ($_GET['message'] ?? ''),
-            'branding' => $repo->getBranding($tenantKey),
-            'menuItems' => $repo->listMenuItems($tenantKey),
-            'services' => $repo->listServices($tenantKey),
-            'decks' => $repo->listDecksForAdmin($tenantKey),
-            'leads' => $repo->getLeads($tenantKey, 120),
-            'invites' => $repo->listInvites(),
+            'activeSiteKey' => $adminSiteKey,
+            'availableSites' => array_intersect_key($siteRegistry->all(), array_flip($auth->availableSiteKeys($user))),
+            'branding' => $repo->getBranding($adminSiteKey),
+            'menuItems' => $repo->listMenuItems($adminSiteKey),
+            'services' => $repo->listServices($adminSiteKey),
+            'decks' => $repo->listDecksForAdmin($adminSiteKey),
+            'leads' => $repo->getLeads($adminSiteKey, 120),
+            'invites' => $repo->listInvites($adminSiteKey),
             'orgProfiles' => $repo->listOrgProfiles(),
         ]);
     }

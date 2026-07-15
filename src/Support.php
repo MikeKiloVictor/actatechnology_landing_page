@@ -142,19 +142,7 @@ function slugify(string $value): string
 
 function getTenantKeyFromHost(string $host): string
 {
-    $host = strtolower(trim(explode(':', $host)[0]));
-
-    if ($host === '' || $host === 'localhost' || $host === '127.0.0.1' || $host === 'actatechnology.dk') {
-        return 'main';
-    }
-
-    if (str_ends_with($host, '.actatechnology.dk')) {
-        $subdomain = substr($host, 0, -strlen('.actatechnology.dk'));
-        $sanitized = preg_replace('/[^a-z0-9]+/i', '_', $subdomain) ?? 'main';
-        return $sanitized !== '' ? $sanitized : 'main';
-    }
-
-    return 'main';
+    return (new SiteRegistry())->resolve($host, env('SITE_KEY')) ?? '';
 }
 
 function clientIpAddress(): string
@@ -239,4 +227,18 @@ function routeMatches(string $path, string $pattern): ?array
     }
 
     return $params;
+}
+
+function combineThemeCss(string $familyPath, string $tenantPath): string
+{
+    $chunks = [];
+    foreach ([$familyPath, $tenantPath] as $path) {
+        $contents = is_file($path) ? file_get_contents($path) : false;
+        if ($contents === false) {
+            throw new RuntimeException('Theme stylesheet is unavailable.');
+        }
+        $chunks[] = rtrim($contents) . "\n";
+    }
+
+    return implode("\n", $chunks);
 }

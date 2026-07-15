@@ -1,0 +1,118 @@
+name: Deploy Simply
+run-name: "acta-deploy:${{ inputs.site }}:${{ inputs.environment }}:${{ inputs.operation }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: Site artifact
+        type: choice
+        required: true
+        options: [actagroup, actaconsult, actatechnology]
+      environment:
+        description: Target environment
+        type: choice
+        required: true
+        options: [staging, production]
+      operation:
+        description: Release operation
+        type: choice
+        required: true
+        options: [deploy, rollback]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "simply-${{ inputs.site }}-${{ inputs.environment }}"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: "${{ inputs.site }}-${{ inputs.environment }}"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, curl
+
+      - name: Verify source
+        run: bash scripts/ci.sh
+
+      - name: Build selected artifact
+        if: inputs.operation == 'deploy'
+        run: |
+          bash scripts/build-artifacts.sh
+          bash scripts/verify-artifact.sh "${{ inputs.site }}" "dist/${{ inputs.site }}"
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SIMPLY_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SIMPLY_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Validate deployment target
+        env:
+          SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
+          SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
+          DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
+          SMOKE_URL: ${{ vars.SIMPLY_SMOKE_URL }}
+        run: |
+          [[ "$SSH_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]{0,252}$ ]]
+          [[ "$SSH_USER" =~ ^[a-zA-Z_][a-zA-Z0-9._-]{0,63}$ ]]
+          [[ "$DEPLOY_ROOT" =~ ^/[a-zA-Z0-9._/+-]{1,510}$ && "$DEPLOY_ROOT" != "/" && "$DEPLOY_ROOT" != */ && "$DEPLOY_ROOT/" != *"//"* && "$DEPLOY_ROOT/" != *"/../"* && "$DEPLOY_ROOT/" != *"/./"* ]]
+          [[ "$SMOKE_URL" =~ ^https://[a-zA-Z0-9][a-zA-Z0-9.-]*(/[^[:space:]]*)?$ ]]
+
+      - name: Upload release and migration bundle
+        if: inputs.operation == 'deploy'
+        env:
+          SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
+          SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
+          DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          tar -C "dist/${{ inputs.site }}" -czf - . | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/releases/$RELEASE_ID' && tar -xzf - -C '$DEPLOY_ROOT/releases/$RELEASE_ID'"
+          tar -czf - database scripts/migrate.sh scripts/remote-migrate.php | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/platform-db' && tar -xzf - -C '$DEPLOY_ROOT/platform-db'"
+
+      - name: Activate or roll back release
+        env:
+          SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
+          SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
+          DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "${{ inputs.operation }}" "$DEPLOY_ROOT" "$RELEASE_ID" < scripts/remote-release.sh
+
+      - name: Smoke test
+        id: smoke
+        continue-on-error: true
+        env:
+          SMOKE_URL: ${{ vars.SIMPLY_SMOKE_URL }}
+        run: |
+          curl --fail --show-error --silent --retry 5 --retry-all-errors --retry-delay 3 "$SMOKE_URL/" --output /tmp/acta-smoke.html
+          grep --fixed-strings --quiet 'data-site="${{ inputs.site }}"' /tmp/acta-smoke.html
+
+      - name: Restore previous code after failed deploy smoke
+        if: steps.smoke.outcome == 'failure' && inputs.operation == 'deploy'
+        env:
+          SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
+          SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
+          DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
+          RELEASE_ID: ${{ github.sha }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- rollback "$DEPLOY_ROOT" "$RELEASE_ID" < scripts/remote-release.sh
+
+      - name: Fail deployment after smoke handling
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo "Smoke test failed; inspect the restore step and deployment logs." >&2
+          exit 1

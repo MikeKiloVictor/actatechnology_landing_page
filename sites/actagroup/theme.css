@@ -1,0 +1,15 @@
+:root {
+  --site-accent: #b8bec6;
+  --site-accent-strong: #d7dbe0;
+  --site-surface: #1d2126;
+  --site-ink: #d7dbe0;
+  --site-heading-font: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+html[data-site="actagroup"] {
+  --acta-brand: #b8bec6;
+  --acta-brand-hi: #d7dbe0;
+  --acta-brand-rgb: 184, 190, 198;
+  --acta-brand-hi-rgb: 215, 219, 224;
+  --acta-surface-deep: #1d2126;
+}

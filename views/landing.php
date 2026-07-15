@@ -19,8 +19,15 @@ $services = $services ?? [];
 $decks = $decks ?? [];
 $blogPosts = $blogPosts ?? [];
 $gaId = (string) env('GA4_MEASUREMENT_ID', '');
+$siteConfig = (new SiteRegistry())->get((string) ($tenantKey ?? 'actatechnology'));
+$canonicalHost = (string) ($siteConfig['canonical_host'] ?? 'actatechnology.dk');
+$canonicalPath = $isEn ? '/en' : '/';
 $styleVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/style.css') ?: time());
 $scriptVersion = (string) (@filemtime(dirname(__DIR__) . '/public/assets/landing.js') ?: time());
+$usesActaDesign = in_array(($tenantKey ?? ''), ['actagroup', 'actaconsult', 'actatechnology'], true);
+$fontStylesheetUrl = $usesActaDesign
+    ? 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+    : 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap';
 
 $labels = [
     'admin' => $isEn ? 'Admin' : 'Administration',
@@ -53,19 +60,30 @@ $labels = [
     'rejectTracking' => $isEn ? 'Reject' : 'Afvis',
     'footer' => $isEn ? 'ActaTechnology. Built for multi-tenant web platforms.' : 'ActaTechnology. Bygget til multi-tenant webplatforme.',
 ];
+if ($usesActaDesign) {
+    $labels['footer'] = $appName;
+}
 ?>
 <!doctype html>
-<html lang="<?= $isEn ? 'en' : 'da' ?>">
+<html lang="<?= $isEn ? 'en' : 'da' ?>" data-site="<?= h((string) ($tenantKey ?? '')) ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= h($appName) ?></title>
   <meta name="description" content="<?= h($heroSubtitle) ?>">
+  <link rel="canonical" href="https://<?= h($canonicalHost . $canonicalPath) ?>">
+  <link rel="alternate" hreflang="da" href="https://<?= h($canonicalHost) ?>/">
+  <link rel="alternate" hreflang="en" href="https://<?= h($canonicalHost) ?>/en">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="<?= h($appName) ?>">
+  <meta property="og:description" content="<?= h($heroSubtitle) ?>">
+  <meta property="og:url" content="https://<?= h($canonicalHost . $canonicalPath) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link href="<?= $fontStylesheetUrl ?>" rel="stylesheet">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/style.css?v=<?= h($styleVersion) ?>">
+  <link rel="stylesheet" href="/assets/theme.css">
   <style>
     :root {
       --accent: <?= h($accentColor) ?>;
@@ -86,6 +104,9 @@ $labels = [
   <div class="site-shell">
     <header class="topbar glass">
       <div class="brand">
+<?php if ($usesActaDesign && empty($brand['logo_url']) && str_starts_with($appName, 'Acta') && strlen($appName) > 4): ?>
+        <p class="brand-name acta-wordmark"><span class="acta-dot" aria-hidden="true"></span><span class="acta-core">Acta</span><span class="acta-suffix"><?= h(substr($appName, 4)) ?></span></p>
+<?php else: ?>
         <div class="brand-mark">
           <?php if (!empty($brand['logo_url'])): ?>
             <img src="<?= h((string) $brand['logo_url']) ?>" alt="Logo">
@@ -95,8 +116,9 @@ $labels = [
         </div>
         <div>
           <p class="brand-name"><?= h($appName) ?></p>
-          <p class="brand-sub">actatechnology.dk</p>
+          <p class="brand-sub"><?= h($canonicalHost) ?></p>
         </div>
+<?php endif; ?>
       </div>
       <nav class="menu" aria-label="Header">
         <?php foreach ($menuItems as $item): ?>
@@ -117,11 +139,13 @@ $labels = [
             <a class="button button-secondary" href="<?= h($secondaryCtaUrl) ?>"><?= h($secondaryCtaLabel) ?></a>
           </div>
         </div>
+<?php if (($tenantKey ?? '') === 'actatechnology'): ?>
         <aside class="hero-story glass">
           <h3><?= h($labels['storyHeadline']) ?></h3>
           <p><?= h($labels['storyText']) ?></p>
           <p class="muted">LAMP-ready | Multi-tenant | CMS + Deck Player</p>
         </aside>
+<?php endif; ?>
       </div>
     </section>
 

@@ -6,8 +6,8 @@ services:
     container_name: actatechnology_app
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       mailpit:
         condition: service_started
     ports:
@@ -27,6 +27,72 @@ services:
       DB_CHARSET: utf8mb4
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
+      SITE_KEY: actatechnology
+
+  app_group:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: actagroup_app
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    ports:
+      - "8083:80"
+    volumes:
+      - ./:/var/www/html
+    environment: &app_environment
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: actatechnology
+      DB_USERNAME: acta_user
+      DB_PASSWORD: acta_pass
+      DB_CHARSET: utf8mb4
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SITE_KEY: actagroup
+
+  app_consult:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: actaconsult_app
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    ports:
+      - "8084:80"
+    volumes:
+      - ./:/var/www/html
+    environment:
+      <<: *app_environment
+      SITE_KEY: actaconsult
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    entrypoint: ["/bin/bash", "/var/www/html/scripts/migrate.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./:/var/www/html
+    environment:
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: actatechnology
+      DB_USERNAME: acta_user
+      DB_PASSWORD: acta_pass
 
   db:
     image: mysql:8.4
@@ -58,7 +124,7 @@ services:
     container_name: actatechnology_mailpit
     restart: unless-stopped
     ports:
-      - "8026:8025"
+      - "${MAILPIT_PORT:-8026}:8025"
 
 volumes:
   db_data:

@@ -37,8 +37,26 @@ function setEnvValue(string $key, ?string $value): void
 }
 
 assertSameValue('hello-world', slugify('Hello World'), 'slugify should normalize whitespace and case');
-assertSameValue('main', getTenantKeyFromHost('actatechnology.dk'), 'root domain should map to main tenant');
-assertSameValue('demo', getTenantKeyFromHost('demo.actatechnology.dk'), 'subdomain should map to tenant key');
+$registry = new SiteRegistry();
+assertSameValue('actatechnology', $registry->resolve('actatechnology.dk'), 'technology domain should map to technology site');
+assertSameValue('actagroup', $registry->resolve('www.actagroup.dk'), 'www group domain should map to group site');
+assertSameValue('actaconsult', $registry->resolve('actaconsult.dk'), 'consult domain should map to consult site');
+assertSameValue(null, $registry->resolve('unknown.example'), 'unknown host must be rejected');
+assertSameValue('actagroup', $registry->resolve('localhost:8083', 'actagroup'), 'fixed artifacts should allow localhost');
+assertSameValue(null, $registry->resolve('actaconsult.dk', 'actagroup'), 'fixed artifacts must reject another production host');
+assertSameValue(null, $registry->resolve('localhost', 'unknown'), 'unknown artifact site key must be rejected');
+
+$familyThemePath = dirname(__DIR__) . '/sites/acta-family.css';
+foreach (['actagroup', 'actaconsult', 'actatechnology'] as $site) {
+    $theme = combineThemeCss($familyThemePath, dirname(__DIR__) . '/sites/' . $site . '/theme.css');
+    assertTrue(str_contains($theme, 'Shared Acta family theme'), $site . ' theme should contain family layer');
+    assertTrue(str_contains($theme, 'html[data-site="' . $site . '"]'), $site . ' theme should contain its tenant layer');
+    foreach (['actagroup', 'actaconsult', 'actatechnology'] as $other) {
+        if ($other !== $site) {
+            assertTrue(!str_contains($theme, 'html[data-site="' . $other . '"]'), $site . ' theme must exclude ' . $other);
+        }
+    }
+}
 
 $params = routeMatches('/api/public/v1/deck/my-story', '/api/public/v1/deck/{slug}');
 assertTrue(is_array($params), 'route should match deck pattern');
