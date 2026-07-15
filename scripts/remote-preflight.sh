@@ -10,7 +10,16 @@ fail() {
 
 [[ "${deploy_root}" =~ ^/[a-zA-Z0-9._/+-]+$ && "${deploy_root}" != "/" && "${deploy_root}" != */ && "${deploy_root}/" != *"//"* && "${deploy_root}/" != *"/../"* && "${deploy_root}/" != *"/./"* ]] || fail unsafe_deploy_root
 
-test -d "${deploy_root}" || fail deploy_root_missing
+if [[ ! -d "${deploy_root}" ]]; then
+  relative_candidate=".${deploy_root}"
+  if [[ -d "${relative_candidate}" ]]; then
+    absolute_candidate="$(cd "${relative_candidate}" && pwd -P)"
+    printf 'preflight_failed check=deploy_root_absolute_mismatch candidate=%s\n' "${absolute_candidate}" >&2
+  else
+    printf 'preflight_failed check=deploy_root_missing ssh_home=%s\n' "$(pwd -P)" >&2
+  fi
+  exit 1
+fi
 test -r "${deploy_root}" || fail deploy_root_not_readable
 test -x "${deploy_root}" || fail deploy_root_not_searchable
 test -w "${deploy_root}" || fail deploy_root_not_writable
