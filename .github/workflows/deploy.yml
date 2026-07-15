@@ -107,7 +107,7 @@ jobs:
           RELEASE_ID: ${{ github.sha }}
         run: |
           tar -C "dist/${{ inputs.site }}" -czf - . | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/releases/$RELEASE_ID' && tar -xzf - -C '$DEPLOY_ROOT/releases/$RELEASE_ID'"
-          tar -czf - database scripts/migrate.sh scripts/remote-migrate.php | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/platform-db' && tar -xzf - -C '$DEPLOY_ROOT/platform-db'"
+          tar -czf - database deploy/webroot.htaccess scripts/migrate.sh scripts/remote-migrate.php | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/platform-db' && tar -xzf - -C '$DEPLOY_ROOT/platform-db'"
 
       - name: Activate or roll back release
         if: inputs.operation != 'preflight'

@@ -1,0 +1,19 @@
+# Managed by the Acta release pipeline. Do not edit on the server.
+RewriteEngine On
+
+# Let Simply handle certificate challenges outside the application release.
+RewriteRule ^\.well-known(?:/|$) - [L]
+
+# Stop the second rewrite pass after dispatching into the active release.
+RewriteRule ^current(?:/|$) - [L]
+
+# Deployment internals must never be web-accessible.
+RewriteRule ^(?:platform-db|releases|shared)(?:/|$) - [F,L]
+
+# Serve real release files (assets, favicon, etc.) through the active release.
+RewriteCond %{DOCUMENT_ROOT}/current/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/current/$1 -d
+RewriteRule ^(.+)$ current/$1 [L]
+
+# All application routes enter the active release while preserving REQUEST_URI.
+RewriteRule ^ current/index.php [QSA,L]
