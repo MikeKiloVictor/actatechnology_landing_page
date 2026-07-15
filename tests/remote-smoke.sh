@@ -14,6 +14,10 @@ set -euo pipefail
 
 output=''
 while [[ "$#" -gt 0 ]]; do
+  if [[ "$1" == '--retry-all-errors' ]]; then
+    echo "unsupported curl option" >&2
+    exit 2
+  fi
   if [[ "$1" == '--output' ]]; then
     output="${2:?}"
     shift 2

@@ -22,7 +22,7 @@ done
 smoke_file="$(mktemp)"
 trap 'rm -f "${smoke_file}"' EXIT
 
-curl --fail --show-error --silent --retry 5 --retry-all-errors --retry-delay 3 --max-time 20 \
+curl --fail --show-error --silent --retry 5 --retry-delay 3 --max-time 20 \
   "${smoke_url}/" --output "${smoke_file}" || fail http_request
 grep --fixed-strings --quiet "data-site=\"${expected_site}\"" "${smoke_file}" || fail site_marker
 
