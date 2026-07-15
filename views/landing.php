@@ -165,6 +165,7 @@ if ($usesActaDesign) {
       </div>
     </section>
 
+    <?php if ($decks !== []): ?>
     <section id="stories" class="section">
       <div class="section-header">
         <h2><?= h($labels['storiesTitle']) ?></h2>
@@ -214,7 +215,9 @@ if ($usesActaDesign) {
         </div>
       </div>
     </section>
+    <?php endif; ?>
 
+    <?php if ($blogPosts !== []): ?>
     <section class="section" id="blog">
       <div class="section-header">
         <h2><?= h($labels['blogsTitle']) ?></h2>
@@ -228,6 +231,7 @@ if ($usesActaDesign) {
         <?php endforeach; ?>
       </div>
     </section>
+    <?php endif; ?>
 
     <section class="section" id="lead">
       <div class="lead-panel glass">
