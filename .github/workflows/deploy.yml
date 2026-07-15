@@ -18,7 +18,7 @@ on:
         description: Release operation
         type: choice
         required: true
-        options: [deploy, rollback]
+        options: [preflight, deploy, rollback]
 
 permissions:
   contents: read
@@ -72,6 +72,15 @@ jobs:
           [[ "$DEPLOY_ROOT" =~ ^/[a-zA-Z0-9._/+-]{1,510}$ && "$DEPLOY_ROOT" != "/" && "$DEPLOY_ROOT" != */ && "$DEPLOY_ROOT/" != *"//"* && "$DEPLOY_ROOT/" != *"/../"* && "$DEPLOY_ROOT/" != *"/./"* ]]
           [[ "$SMOKE_URL" =~ ^https://[a-zA-Z0-9][a-zA-Z0-9.-]*(/[^[:space:]]*)?$ ]]
 
+      - name: Run read-only remote preflight
+        if: inputs.operation == 'preflight'
+        env:
+          SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
+          SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
+          DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
+        run: |
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$DEPLOY_ROOT" < scripts/remote-preflight.sh
+
       - name: Upload release and migration bundle
         if: inputs.operation == 'deploy'
         env:
@@ -84,6 +93,7 @@ jobs:
           tar -czf - database scripts/migrate.sh scripts/remote-migrate.php | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/platform-db' && tar -xzf - -C '$DEPLOY_ROOT/platform-db'"
 
       - name: Activate or roll back release
+        if: inputs.operation != 'preflight'
         env:
           SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
           SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
@@ -93,6 +103,7 @@ jobs:
           ssh "$SSH_USER@$SSH_HOST" bash -s -- "${{ inputs.operation }}" "$DEPLOY_ROOT" "$RELEASE_ID" < scripts/remote-release.sh
 
       - name: Smoke test
+        if: inputs.operation != 'preflight'
         id: smoke
         continue-on-error: true
         env:

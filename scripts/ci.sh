@@ -15,4 +15,8 @@ echo "[ci] JS syntax"
 node --check "${ROOT_DIR}/public/assets/landing.js"
 node --check "${ROOT_DIR}/public/assets/deck.js"
 
+echo "[ci] Shell syntax"
+bash -n "${ROOT_DIR}/scripts/remote-preflight.sh"
+bash -n "${ROOT_DIR}/scripts/remote-release.sh"
+
 echo "[ci] done"
