@@ -45,7 +45,8 @@ printf '<?php\n' > "${unmanaged_root}/platform-db/scripts/remote-migrate.php"
 printf '# managed webroot\n' > "${unmanaged_root}/platform-db/deploy/webroot.htaccess"
 printf '# operator-owned webroot\n' > "${unmanaged_root}/.htaccess"
 
-PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" deploy "${deploy_root}" "${release_id}"
+deploy_output="$(PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" deploy "${deploy_root}" "${release_id}")"
+grep -q '^release_ok operation=deploy current=releases/abc1234 previous=absent webroot=managed$' <<< "${deploy_output}"
 
 test -L "${deploy_root}/releases/${release_id}/_app/.env"
 test "$(readlink "${deploy_root}/releases/${release_id}/_app/.env")" = "../../../shared/.env"
@@ -67,11 +68,12 @@ fi
 test ! -L "${unmanaged_root}/current"
 grep -qx '# operator-owned webroot' "${unmanaged_root}/.htaccess"
 
-PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" deploy "${first_deploy_root}" "${release_id}"
+PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" deploy "${first_deploy_root}" "${release_id}" >/dev/null
 test -L "${first_deploy_root}/current"
 test ! -L "${first_deploy_root}/previous"
 test -f "${first_deploy_root}/.htaccess"
-PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" rollback "${first_deploy_root}" "${release_id}"
+rollback_output="$(PATH="${fake_bin}:${PATH}" bash "${ROOT_DIR}/scripts/remote-release.sh" rollback "${first_deploy_root}" "${release_id}")"
+grep -q '^release_ok operation=rollback current=absent previous=absent webroot=absent$' <<< "${rollback_output}"
 test ! -e "${first_deploy_root}/current"
 test ! -e "${first_deploy_root}/.htaccess"
 

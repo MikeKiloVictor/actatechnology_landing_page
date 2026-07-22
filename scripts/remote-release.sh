@@ -12,6 +12,21 @@ cd "${deploy_root}"
 managed_webroot_config="platform-db/deploy/webroot.htaccess"
 webroot_config=".htaccess"
 
+report_release() {
+  current_report="$(readlink current 2>/dev/null || true)"
+  previous_report="$(readlink previous 2>/dev/null || true)"
+  webroot_report="absent"
+  if [[ -e "${webroot_config}" ]]; then
+    webroot_report="unknown"
+    if [[ -f "${managed_webroot_config}" && -f "${webroot_config}" ]] \
+      && cmp -s "${managed_webroot_config}" "${webroot_config}"; then
+      webroot_report="managed"
+    fi
+  fi
+  printf 'release_ok operation=%s current=%s previous=%s webroot=%s\n' \
+    "${operation}" "${current_report:-absent}" "${previous_report:-absent}" "${webroot_report}"
+}
+
 if [[ "${operation}" == "rollback" ]]; then
   current_target="$(readlink current 2>/dev/null || true)"
   if [[ ! -L previous ]]; then
@@ -20,6 +35,7 @@ if [[ "${operation}" == "rollback" ]]; then
       if [[ -f "${managed_webroot_config}" && -f "${webroot_config}" ]] && cmp -s "${managed_webroot_config}" "${webroot_config}"; then
         rm -f -- "${webroot_config}"
       fi
+      report_release
       exit 0
     fi
     exit 1
@@ -31,6 +47,7 @@ if [[ "${operation}" == "rollback" ]]; then
   if [[ -n "${current_target}" ]]; then
     ln -sfn "${current_target}" previous
   fi
+  report_release
   exit 0
 fi
 
@@ -67,3 +84,4 @@ if [[ -n "${current_target}" && -d "${current_target}" ]]; then
 fi
 
 find releases -mindepth 1 -maxdepth 1 -type d -mtime +30 -exec rm -rf -- {} +
+report_release

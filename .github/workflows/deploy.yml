@@ -42,15 +42,18 @@ jobs:
           extensions: pdo_mysql, curl
 
       - name: Verify source
+        id: source
         run: bash scripts/ci.sh
 
       - name: Build selected artifact
+        id: build
         if: inputs.operation == 'deploy'
         run: |
           bash scripts/build-artifacts.sh
           bash scripts/verify-artifact.sh "${{ inputs.site }}" "dist/${{ inputs.site }}"
 
       - name: Configure SSH
+        id: configure_ssh
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SIMPLY_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SIMPLY_SSH_KNOWN_HOSTS }}
@@ -69,6 +72,7 @@ jobs:
           chmod 0600 ~/.ssh/config ~/.ssh/id_ed25519 ~/.ssh/known_hosts
 
       - name: Validate deployment target
+        id: validate_target
         env:
           SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
           SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
@@ -81,15 +85,21 @@ jobs:
           [[ "$SMOKE_URL" =~ ^https://[a-zA-Z0-9][a-zA-Z0-9.-]*(/[^[:space:]]*)?$ ]]
 
       - name: Run read-only remote preflight
+        id: remote_preflight
         if: inputs.operation == 'preflight'
         env:
           SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
           SSH_USER: ${{ secrets.SIMPLY_SSH_USER }}
           DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$DEPLOY_ROOT" < scripts/remote-preflight.sh
+          remote_output="$(ssh "$SSH_USER@$SSH_HOST" bash -s -- "$DEPLOY_ROOT" < scripts/remote-preflight.sh)"
+          printf '%s\n' "$remote_output"
+          marker="$(grep -E '^preflight_ok php=[^ ]+ curl=[^ ]+ shared_env=present current=(absent|valid) current_release=([a-f0-9]{7,40}|none) previous=(absent|valid) previous_release=([a-f0-9]{7,40}|none) webroot=(absent|managed|unknown)$' <<< "$remote_output" | tail -n 1)"
+          [[ -n "$marker" && "$marker" != *$'\n'* ]]
+          printf 'marker=%s\n' "$marker" >> "$GITHUB_OUTPUT"
 
       - name: Probe HTTPS from hosting server
+        id: hosting_probe
         if: inputs.operation == 'preflight'
         env:
           SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
@@ -99,6 +109,7 @@ jobs:
           ssh "$SSH_USER@$SSH_HOST" bash -s -- "$SMOKE_URL" < scripts/remote-http-probe.sh
 
       - name: Upload release and migration bundle
+        id: upload
         if: inputs.operation == 'deploy'
         env:
           SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
@@ -106,10 +117,14 @@ jobs:
           DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
           RELEASE_ID: ${{ github.sha }}
         run: |
+          # Values are validated above and intentionally expand before SSH.
+          # shellcheck disable=SC2029
           tar -C "dist/${{ inputs.site }}" -czf - . | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/releases/$RELEASE_ID' && tar -xzf - -C '$DEPLOY_ROOT/releases/$RELEASE_ID'"
+          # shellcheck disable=SC2029
           tar -czf - database deploy/webroot.htaccess scripts/migrate.sh scripts/remote-migrate.php | ssh "$SSH_USER@$SSH_HOST" "mkdir -p '$DEPLOY_ROOT/platform-db' && tar -xzf - -C '$DEPLOY_ROOT/platform-db'"
 
       - name: Activate or roll back release
+        id: activation
         if: inputs.operation != 'preflight'
         env:
           SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
@@ -117,7 +132,11 @@ jobs:
           DEPLOY_ROOT: ${{ secrets.SIMPLY_DEPLOY_ROOT }}
           RELEASE_ID: ${{ github.sha }}
         run: |
-          ssh "$SSH_USER@$SSH_HOST" bash -s -- "${{ inputs.operation }}" "$DEPLOY_ROOT" "$RELEASE_ID" < scripts/remote-release.sh
+          remote_output="$(ssh "$SSH_USER@$SSH_HOST" bash -s -- "${{ inputs.operation }}" "$DEPLOY_ROOT" "$RELEASE_ID" < scripts/remote-release.sh)"
+          printf '%s\n' "$remote_output"
+          marker="$(grep -E '^release_ok operation=(deploy|rollback) current=(releases/[a-f0-9]{7,40}|absent) previous=(releases/[a-f0-9]{7,40}|absent) webroot=(absent|managed|unknown)$' <<< "$remote_output" | tail -n 1)"
+          [[ -n "$marker" && "$marker" != *$'\n'* ]]
+          printf 'marker=%s\n' "$marker" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test
         if: inputs.operation != 'preflight'
@@ -131,6 +150,7 @@ jobs:
           ssh "$SSH_USER@$SSH_HOST" bash -s -- "$SMOKE_URL" "${{ inputs.site }}" < scripts/remote-smoke.sh
 
       - name: Restore previous code after failed deploy smoke
+        id: restore
         if: steps.smoke.outcome == 'failure' && inputs.operation == 'deploy'
         env:
           SSH_HOST: ${{ secrets.SIMPLY_SSH_HOST }}
@@ -139,6 +159,99 @@ jobs:
           RELEASE_ID: ${{ github.sha }}
         run: |
           ssh "$SSH_USER@$SSH_HOST" bash -s -- rollback "$DEPLOY_ROOT" "$RELEASE_ID" < scripts/remote-release.sh
+
+      - name: Build deployment report
+        id: report
+        if: always()
+        env:
+          REPORT_SITE: ${{ inputs.site }}
+          REPORT_ENVIRONMENT: ${{ inputs.environment }}
+          REPORT_OPERATION: ${{ inputs.operation }}
+          REPORT_SHA: ${{ github.sha }}
+          REPORT_RUN_ID: ${{ github.run_id }}
+          REPORT_RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPORT_SOURCE: ${{ steps.source.outcome }}
+          REPORT_BUILD: ${{ steps.build.outcome }}
+          REPORT_CONFIGURE_SSH: ${{ steps.configure_ssh.outcome }}
+          REPORT_VALIDATE_TARGET: ${{ steps.validate_target.outcome }}
+          REPORT_PREFLIGHT: ${{ steps.remote_preflight.outcome }}
+          REPORT_HOSTING_PROBE: ${{ steps.hosting_probe.outcome }}
+          REPORT_UPLOAD: ${{ steps.upload.outcome }}
+          REPORT_ACTIVATION: ${{ steps.activation.outcome }}
+          REPORT_SMOKE: ${{ steps.smoke.outcome }}
+          REPORT_RESTORE: ${{ steps.restore.outcome }}
+          REPORT_PREFLIGHT_MARKER: ${{ steps.remote_preflight.outputs.marker }}
+          REPORT_RELEASE_MARKER: ${{ steps.activation.outputs.marker }}
+        run: |
+          mkdir -p deploy-report
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          step_names = (
+              "source", "build", "configure_ssh", "validate_target", "preflight",
+              "hosting_probe", "upload", "activation", "smoke", "restore",
+          )
+          operation = os.environ["REPORT_OPERATION"]
+          authoritative_smoke = (
+              os.environ["REPORT_HOSTING_PROBE"]
+              if operation == "preflight"
+              else os.environ["REPORT_SMOKE"]
+          )
+          report = {
+              "version": 1,
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "run_id": int(os.environ["REPORT_RUN_ID"]),
+              "run_attempt": int(os.environ["REPORT_RUN_ATTEMPT"]),
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "sha": os.environ["REPORT_SHA"],
+              "site": os.environ["REPORT_SITE"],
+              "environment": os.environ["REPORT_ENVIRONMENT"],
+              "operation": operation,
+              "smoke": {
+                  "outcome": authoritative_smoke,
+                  "source": "hosting-origin",
+              },
+              "markers": {
+                  "preflight": os.environ.get("REPORT_PREFLIGHT_MARKER") or None,
+                  "release": os.environ.get("REPORT_RELEASE_MARKER") or None,
+              },
+              "steps": {
+                  name: os.environ[f"REPORT_{name.upper()}"]
+                  for name in step_names
+              },
+          }
+          Path("deploy-report/report.json").write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          if [[ "$REPORT_OPERATION" == "preflight" ]]; then
+            smoke_outcome="$REPORT_HOSTING_PROBE"
+          else
+            smoke_outcome="$REPORT_SMOKE"
+          fi
+          {
+            echo "## Deployment report"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Target | \`${REPORT_SITE}/${REPORT_ENVIRONMENT}\` |"
+            echo "| Operation | \`${REPORT_OPERATION}\` |"
+            echo "| Source SHA | \`${REPORT_SHA}\` |"
+            echo "| Hosting-origin smoke | ${smoke_outcome} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload deployment report
+        if: always() && steps.report.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: "deploy-report-${{ inputs.site }}-${{ inputs.environment }}-${{ inputs.operation }}-${{ github.run_id }}"
+          path: deploy-report/report.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Fail deployment after smoke handling
         if: steps.smoke.outcome == 'failure'
